@@ -41,14 +41,16 @@ export const connectWallet = async (): Promise<{ address: string; chainId: numbe
   }
 
   try {
+    // Request account access
     const accounts = await window.ethereum!.request({
       method: "eth_requestAccounts",
     }) as string[];
 
     if (!accounts || accounts.length === 0) {
-      throw new Error("No accounts found. Please unlock MetaMask.");
+      throw new Error("No accounts found. Please unlock MetaMask and try again.");
     }
 
+    // Get current chain ID
     const chainIdHex = await window.ethereum!.request({
       method: "eth_chainId",
     }) as string;
@@ -60,10 +62,29 @@ export const connectWallet = async (): Promise<{ address: string; chainId: numbe
       chainId,
     };
   } catch (error: unknown) {
-    if ((error as { code?: number }).code === 4001) {
-      throw new Error("Connection rejected. Please approve the connection request in MetaMask.");
+    const err = error as { code?: number; message?: string };
+    
+    // User rejected the request
+    if (err.code === 4001) {
+      throw new Error("Connection rejected. Please click 'Connect' in MetaMask to approve.");
     }
-    throw error;
+    
+    // Request already pending
+    if (err.code === -32002) {
+      throw new Error("Connection request already pending. Please check MetaMask popup.");
+    }
+    
+    // MetaMask is locked
+    if (err.code === -32603) {
+      throw new Error("MetaMask is locked. Please unlock it and try again.");
+    }
+    
+    // Generic error with message
+    if (err.message) {
+      throw new Error(err.message);
+    }
+    
+    throw new Error("Failed to connect wallet. Please try again.");
   }
 };
 

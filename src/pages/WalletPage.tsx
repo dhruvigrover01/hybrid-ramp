@@ -70,12 +70,20 @@ const WalletPage = () => {
     : 0;
 
   const handleConnect = async () => {
+    if (!isMetaMask) {
+      window.open("https://metamask.io/download/", "_blank");
+      return;
+    }
+    
     try {
       await connectWallet();
       toast.success("Wallet connected successfully!");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to connect wallet";
-      toast.error(message);
+      // Don't show error toast if user just rejected - they know what they did
+      if (!message.includes("rejected")) {
+        toast.error(message);
+      }
     }
   };
 
