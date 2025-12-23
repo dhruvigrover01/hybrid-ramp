@@ -89,356 +89,363 @@ const Hero = () => {
             </motion.div>
           </motion.div>
 
-          {/* Right Content - Animated Illustration */}
+          {/* Right Content - Animated Crypto Illustration */}
           <motion.div
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
             className="relative hidden lg:flex items-center justify-center"
           >
-            <div className="relative w-full max-w-lg">
-              {/* Background blob */}
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                  rotate: [0, 5, 0]
-                }}
-                transition={{ 
-                  duration: 8, 
-                  repeat: Infinity, 
-                  ease: "easeInOut" 
-                }}
-                className="absolute inset-0 bg-primary/10 rounded-[40%_60%_70%_30%/40%_50%_60%_50%] blur-sm"
-              />
-              
-              {/* Main SVG Illustration */}
+            <div className="relative w-full max-w-lg h-[500px]">
               <svg
-                viewBox="0 0 500 400"
+                viewBox="0 0 500 500"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className="relative z-10 w-full h-auto"
+                className="w-full h-full"
               >
-                {/* Background Shape */}
-                <motion.ellipse
-                  cx="250"
-                  cy="350"
-                  rx="180"
-                  ry="30"
-                  fill="currentColor"
-                  className="text-primary/10"
-                  animate={{ scaleX: [1, 1.05, 1] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                />
-
-                {/* Bean Bag / Chair */}
-                <motion.path
-                  d="M120 280 C100 280 80 300 80 330 C80 360 100 380 140 380 L220 380 C260 380 280 360 280 330 C280 300 260 280 240 280 Z"
-                  fill="currentColor"
-                  className="text-primary/20"
-                  animate={{ y: [0, -3, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                />
-
-                {/* Person Body */}
+                {/* Background Cloud Left */}
                 <motion.g
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  animate={{ x: [-5, 5, -5] }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  {/* Torso */}
-                  <path
-                    d="M160 200 L160 280 L200 280 L200 200 Z"
-                    fill="currentColor"
-                    className="text-primary"
-                  />
-                  {/* Shirt details */}
-                  <path
-                    d="M165 210 L165 270 L195 270 L195 210 Z"
-                    fill="currentColor"
-                    className="text-primary/80"
-                  />
-                  
-                  {/* Arms */}
-                  <motion.path
-                    d="M160 210 L130 250 L140 260 L165 225"
-                    fill="currentColor"
-                    className="text-primary"
-                    animate={{ rotate: [-2, 2, -2] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    style={{ transformOrigin: "160px 210px" }}
-                  />
-                  <motion.path
-                    d="M200 210 L230 250 L220 260 L195 225"
-                    fill="currentColor"
-                    className="text-primary"
-                    animate={{ rotate: [2, -2, 2] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    style={{ transformOrigin: "200px 210px" }}
-                  />
-
-                  {/* Hands */}
-                  <circle cx="130" cy="255" r="8" fill="#FFD5B8" />
-                  <circle cx="230" cy="255" r="8" fill="#FFD5B8" />
-
-                  {/* Head */}
-                  <circle cx="180" cy="170" r="35" fill="#FFD5B8" />
-                  
-                  {/* Hair */}
-                  <path
-                    d="M150 155 C150 130 165 120 180 120 C195 120 210 130 210 155 C210 145 200 140 180 140 C160 140 150 145 150 155 Z"
-                    fill="#2D3748"
-                  />
-                  
-                  {/* Face */}
-                  <circle cx="170" cy="165" r="3" fill="#2D3748" />
-                  <circle cx="190" cy="165" r="3" fill="#2D3748" />
-                  <motion.path
-                    d="M172 180 Q180 188 188 180"
-                    stroke="#2D3748"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                    animate={{ d: ["M172 180 Q180 188 188 180", "M172 182 Q180 190 188 182", "M172 180 Q180 188 188 180"] }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                  />
-
-                  {/* Legs */}
-                  <path
-                    d="M165 280 L150 350 L170 350 L175 290"
-                    fill="#1A202C"
-                  />
-                  <path
-                    d="M185 280 L210 350 L190 350 L185 290"
-                    fill="#1A202C"
-                  />
-                  
-                  {/* Shoes */}
-                  <ellipse cx="160" cy="355" rx="15" ry="8" fill="#4A5568" />
-                  <ellipse cx="200" cy="355" rx="15" ry="8" fill="#4A5568" />
+                  <ellipse cx="80" cy="280" rx="35" ry="15" fill="currentColor" className="text-muted-foreground/20" />
+                  <ellipse cx="65" cy="275" rx="20" ry="12" fill="currentColor" className="text-muted-foreground/20" />
+                  <ellipse cx="95" cy="275" rx="25" ry="12" fill="currentColor" className="text-muted-foreground/20" />
                 </motion.g>
 
-                {/* Laptop */}
+                {/* Background Cloud Right */}
+                <motion.g
+                  animate={{ x: [5, -5, 5] }}
+                  transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <ellipse cx="380" cy="150" rx="40" ry="18" fill="currentColor" className="text-muted-foreground/15" />
+                  <ellipse cx="360" cy="145" rx="25" ry="14" fill="currentColor" className="text-muted-foreground/15" />
+                  <ellipse cx="400" cy="145" rx="30" ry="14" fill="currentColor" className="text-muted-foreground/15" />
+                </motion.g>
+
+                {/* Floating Dollar Coin - Top Left */}
+                <motion.g
+                  animate={{ 
+                    y: [0, -15, 0],
+                    rotate: [0, 5, 0]
+                  }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <circle cx="100" cy="120" r="35" fill="currentColor" className="text-primary/20" />
+                  <circle cx="100" cy="120" r="30" fill="currentColor" className="text-primary/30" stroke="currentColor" strokeWidth="2" className="stroke-primary/40" />
+                  <text x="100" y="128" textAnchor="middle" fill="currentColor" className="fill-primary/50" fontSize="24" fontWeight="bold">$</text>
+                </motion.g>
+
+                {/* Floating Dollar Coin - Right Side */}
+                <motion.g
+                  animate={{ 
+                    y: [0, -20, 0],
+                    rotate: [0, -8, 0]
+                  }}
+                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                >
+                  <circle cx="400" cy="280" r="45" fill="currentColor" className="text-primary/15" />
+                  <circle cx="400" cy="280" r="38" fill="currentColor" className="text-primary/25" stroke="currentColor" strokeWidth="3" className="stroke-primary/35" />
+                  <text x="400" y="292" textAnchor="middle" fill="currentColor" className="fill-primary/45" fontSize="32" fontWeight="bold">$</text>
+                </motion.g>
+
+                {/* Stacked Coins */}
+                <motion.g
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  {/* Coin Stack Base */}
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <g key={i}>
+                      {/* Coin Side */}
+                      <rect 
+                        x="80" 
+                        y={380 - i * 22} 
+                        width="80" 
+                        height="20" 
+                        rx="3"
+                        fill="currentColor" 
+                        className="text-primary/80"
+                      />
+                      {/* Coin Top */}
+                      <ellipse 
+                        cx="120" 
+                        cy={380 - i * 22} 
+                        rx="40" 
+                        ry="10" 
+                        fill="currentColor" 
+                        className="text-primary"
+                      />
+                      {/* Coin Shine */}
+                      <ellipse 
+                        cx="120" 
+                        cy={378 - i * 22} 
+                        rx="30" 
+                        ry="6" 
+                        fill="currentColor" 
+                        className="text-primary/60"
+                      />
+                      {/* Coin Lines */}
+                      <rect 
+                        x="85" 
+                        y={385 - i * 22} 
+                        width="70" 
+                        height="2" 
+                        fill="currentColor" 
+                        className="text-primary/40"
+                      />
+                      <rect 
+                        x="85" 
+                        y={391 - i * 22} 
+                        width="70" 
+                        height="2" 
+                        fill="currentColor" 
+                        className="text-primary/40"
+                      />
+                    </g>
+                  ))}
+                  
+                  {/* Tilted Coin on Top */}
+                  <motion.g
+                    animate={{ rotate: [-15, -10, -15] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    style={{ transformOrigin: "100px 250px" }}
+                  >
+                    <ellipse 
+                      cx="100" 
+                      cy="250" 
+                      rx="40" 
+                      ry="12" 
+                      fill="currentColor" 
+                      className="text-primary"
+                      transform="rotate(-25 100 250)"
+                    />
+                    <rect 
+                      x="62" 
+                      y="245" 
+                      width="76" 
+                      height="18" 
+                      rx="3"
+                      fill="currentColor" 
+                      className="text-primary/80"
+                      transform="rotate(-25 100 250)"
+                    />
+                  </motion.g>
+                </motion.g>
+
+                {/* Woman Figure */}
                 <motion.g
                   animate={{ y: [0, -5, 0] }}
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  {/* Laptop Base */}
-                  <rect x="130" y="250" width="100" height="60" rx="5" fill="#E2E8F0" />
-                  {/* Laptop Screen */}
-                  <rect x="135" y="200" width="90" height="55" rx="3" fill="#1A202C" />
-                  {/* Screen Content */}
-                  <rect x="140" y="205" width="80" height="45" rx="2" fill="#0D1117" />
+                  {/* Shadow */}
+                  <ellipse cx="270" cy="450" rx="60" ry="12" fill="currentColor" className="text-foreground/10" />
                   
-                  {/* Chart on Screen */}
-                  <motion.polyline
-                    points="145,240 155,235 165,238 175,225 185,230 195,215 205,220 215,210"
-                    stroke="currentColor"
+                  {/* Legs */}
+                  <path d="M240 380 L235 440 L250 445 L255 385" fill="#1a3a2f" />
+                  <path d="M280 380 L290 440 L305 440 L295 380" fill="#1a3a2f" />
+                  
+                  {/* Shoes */}
+                  <ellipse cx="242" cy="447" rx="18" ry="8" fill="#c4a7e7" />
+                  <ellipse cx="298" cy="443" rx="18" ry="8" fill="#c4a7e7" />
+                  
+                  {/* Body/Shirt */}
+                  <path 
+                    d="M230 280 C220 290 215 320 220 380 L300 380 C305 320 300 290 290 280 Z" 
+                    fill="currentColor" 
                     className="text-primary"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
+                  />
+                  
+                  {/* Collar */}
+                  <path 
+                    d="M250 275 L260 295 L270 275" 
+                    fill="white" 
+                  />
+                  
+                  {/* Left Arm */}
+                  <motion.g
+                    animate={{ rotate: [-3, 3, -3] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    style={{ transformOrigin: "230px 290px" }}
+                  >
+                    <path 
+                      d="M230 290 C210 300 200 320 210 340 L225 335 C220 320 225 305 240 298" 
+                      fill="currentColor" 
+                      className="text-primary"
+                    />
+                    {/* Left Hand */}
+                    <circle cx="212" cy="342" r="12" fill="#f4c4a0" />
+                    
+                    {/* Phone in hand */}
+                    <rect x="200" y="320" width="25" height="45" rx="4" fill="#1a1a2e" />
+                    <rect x="203" y="325" width="19" height="35" rx="2" fill="#2d2d44" />
+                  </motion.g>
+                  
+                  {/* Right Arm */}
+                  <motion.g
+                    animate={{ rotate: [2, -2, 2] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                    style={{ transformOrigin: "290px 290px" }}
+                  >
+                    <path 
+                      d="M290 290 C310 300 315 310 310 330 L295 328 C298 315 295 305 285 298" 
+                      fill="currentColor" 
+                      className="text-primary"
+                    />
+                    {/* Right Hand */}
+                    <circle cx="307" cy="332" r="10" fill="#f4c4a0" />
+                  </motion.g>
+                  
+                  {/* Neck */}
+                  <rect x="250" y="250" width="20" height="30" fill="#f4c4a0" />
+                  
+                  {/* Head */}
+                  <ellipse cx="260" cy="220" rx="40" ry="45" fill="#f4c4a0" />
+                  
+                  {/* Hair */}
+                  <path 
+                    d="M220 210 C215 180 230 160 260 160 C290 160 305 180 300 210 C300 200 290 185 260 185 C230 185 220 200 220 210 Z" 
+                    fill="#1a1a2e"
+                  />
+                  {/* Hair ponytail */}
+                  <motion.path 
+                    d="M300 200 C320 210 330 240 325 280 C322 260 315 235 305 215"
+                    fill="#1a1a2e"
                     animate={{ 
-                      points: [
-                        "145,240 155,235 165,238 175,225 185,230 195,215 205,220 215,210",
-                        "145,238 155,240 165,232 175,228 185,225 195,220 205,215 215,205",
-                        "145,240 155,235 165,238 175,225 185,230 195,215 205,220 215,210"
+                      d: [
+                        "M300 200 C320 210 330 240 325 280 C322 260 315 235 305 215",
+                        "M300 200 C325 215 335 245 330 285 C327 265 318 238 305 215",
+                        "M300 200 C320 210 330 240 325 280 C322 260 315 235 305 215"
+                      ]
+                    }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  
+                  {/* Face - Eyes (closed/happy) */}
+                  <path d="M242 215 Q247 210 252 215" stroke="#1a1a2e" strokeWidth="2" fill="none" strokeLinecap="round" />
+                  <path d="M268 215 Q273 210 278 215" stroke="#1a1a2e" strokeWidth="2" fill="none" strokeLinecap="round" />
+                  
+                  {/* Smile */}
+                  <motion.path 
+                    d="M250 235 Q260 245 270 235" 
+                    stroke="#1a1a2e" 
+                    strokeWidth="2" 
+                    fill="none" 
+                    strokeLinecap="round"
+                    animate={{
+                      d: [
+                        "M250 235 Q260 245 270 235",
+                        "M250 236 Q260 248 270 236",
+                        "M250 235 Q260 245 270 235"
                       ]
                     }}
                     transition={{ duration: 3, repeat: Infinity }}
                   />
-                </motion.g>
-
-                {/* Floating Chart Window */}
-                <motion.g
-                  animate={{ 
-                    y: [0, -10, 0],
-                    x: [0, 5, 0]
-                  }}
-                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <rect x="280" y="80" width="140" height="100" rx="10" fill="currentColor" className="text-card" stroke="currentColor" strokeWidth="2" className="stroke-border" />
                   
-                  {/* Window Header */}
-                  <rect x="280" y="80" width="140" height="25" rx="10" fill="currentColor" className="text-secondary" />
-                  <circle cx="295" cy="92" r="4" fill="#EF4444" />
-                  <circle cx="310" cy="92" r="4" fill="#F59E0B" />
-                  <circle cx="325" cy="92" r="4" fill="#22C55E" />
-                  
-                  {/* Bar Chart */}
-                  <motion.rect
-                    x="295"
-                    y="140"
-                    width="15"
-                    height="25"
-                    fill="currentColor"
-                    className="text-primary/60"
-                    animate={{ height: [25, 35, 25] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  />
-                  <motion.rect
-                    x="320"
-                    y="130"
-                    width="15"
-                    height="35"
-                    fill="currentColor"
-                    className="text-primary/80"
-                    animate={{ height: [35, 45, 35] }}
-                    transition={{ duration: 2, repeat: Infinity, delay: 0.3 }}
-                  />
-                  <motion.rect
-                    x="345"
-                    y="120"
-                    width="15"
-                    height="45"
-                    fill="currentColor"
-                    className="text-primary"
-                    animate={{ height: [45, 55, 45] }}
-                    transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
-                  />
-                  <motion.rect
-                    x="370"
-                    y="125"
-                    width="15"
-                    height="40"
-                    fill="currentColor"
-                    className="text-primary/70"
-                    animate={{ height: [40, 50, 40] }}
-                    transition={{ duration: 2, repeat: Infinity, delay: 0.9 }}
-                  />
-                  
-                  {/* Trend Arrow */}
-                  <motion.path
-                    d="M290 115 L400 115"
-                    stroke="currentColor"
-                    className="text-muted-foreground"
-                    strokeWidth="1"
-                    strokeDasharray="4"
-                  />
-                  <motion.path
-                    d="M380 75 L400 55 L405 75"
-                    stroke="currentColor"
-                    className="text-primary"
-                    strokeWidth="3"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    animate={{ y: [0, -5, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  />
-                </motion.g>
-
-                {/* Floating Coins */}
-                <motion.g
-                  animate={{ 
-                    y: [0, -15, 0],
-                    rotate: [0, 10, 0]
-                  }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <circle cx="350" cy="200" r="25" fill="currentColor" className="text-primary" />
-                  <circle cx="350" cy="200" r="20" fill="currentColor" className="text-primary/80" />
-                  <text x="350" y="207" textAnchor="middle" fill="white" fontSize="18" fontWeight="bold">$</text>
-                </motion.g>
-
-                <motion.g
-                  animate={{ 
-                    y: [0, -20, 0],
-                    rotate: [0, -15, 0]
-                  }}
-                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                >
-                  <circle cx="400" cy="160" r="20" fill="currentColor" className="text-primary/80" />
-                  <circle cx="400" cy="160" r="16" fill="currentColor" className="text-primary/60" />
-                  <text x="400" y="166" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">$</text>
+                  {/* Blush */}
+                  <ellipse cx="238" cy="228" rx="8" ry="5" fill="#f5a5a5" opacity="0.4" />
+                  <ellipse cx="282" cy="228" rx="8" ry="5" fill="#f5a5a5" opacity="0.4" />
                 </motion.g>
 
                 {/* Plant */}
                 <motion.g
                   animate={{ rotate: [-2, 2, -2] }}
-                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                  style={{ transformOrigin: "420px 380px" }}
+                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                  style={{ transformOrigin: "430px 450px" }}
                 >
                   {/* Pot */}
-                  <path
-                    d="M400 350 L410 380 L430 380 L440 350 Z"
-                    fill="#4A5568"
-                  />
-                  <ellipse cx="420" cy="350" rx="22" ry="8" fill="#2D3748" />
+                  <path d="M410 420 L415 455 L445 455 L450 420 Z" fill="currentColor" className="text-primary/90" />
+                  <ellipse cx="430" cy="420" rx="22" ry="8" fill="currentColor" className="text-primary" />
                   
-                  {/* Stem */}
-                  <motion.path
-                    d="M420 350 Q420 300 420 280"
-                    stroke="currentColor"
-                    className="text-primary"
-                    strokeWidth="3"
+                  {/* Stems */}
+                  <motion.path 
+                    d="M425 420 Q420 380 430 360" 
+                    stroke="currentColor" 
+                    className="stroke-primary/80" 
+                    strokeWidth="3" 
                     fill="none"
-                    animate={{ d: ["M420 350 Q420 300 420 280", "M420 350 Q425 300 420 280", "M420 350 Q420 300 420 280"] }}
+                    animate={{ d: ["M425 420 Q420 380 430 360", "M425 420 Q418 380 428 360", "M425 420 Q420 380 430 360"] }}
                     transition={{ duration: 4, repeat: Infinity }}
+                  />
+                  <motion.path 
+                    d="M435 420 Q445 390 440 365" 
+                    stroke="currentColor" 
+                    className="stroke-primary/80" 
+                    strokeWidth="3" 
+                    fill="none"
+                    animate={{ d: ["M435 420 Q445 390 440 365", "M435 420 Q448 390 443 365", "M435 420 Q445 390 440 365"] }}
+                    transition={{ duration: 4, repeat: Infinity, delay: 0.5 }}
                   />
                   
                   {/* Leaves */}
-                  <motion.ellipse
-                    cx="410"
-                    cy="290"
-                    rx="12"
-                    ry="6"
-                    fill="currentColor"
-                    className="text-primary/80"
-                    transform="rotate(-30 410 290)"
-                    animate={{ rotate: [-30, -35, -30] }}
+                  <motion.ellipse 
+                    cx="430" cy="355" rx="15" ry="8" 
+                    fill="currentColor" 
+                    className="text-primary/70"
+                    animate={{ rotate: [-10, 10, -10] }}
                     transition={{ duration: 3, repeat: Infinity }}
+                    style={{ transformOrigin: "430px 360px" }}
                   />
-                  <motion.ellipse
-                    cx="430"
-                    cy="300"
-                    rx="12"
-                    ry="6"
-                    fill="currentColor"
-                    className="text-primary/80"
-                    transform="rotate(30 430 300)"
-                    animate={{ rotate: [30, 35, 30] }}
-                    transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
+                  <motion.ellipse 
+                    cx="445" cy="365" rx="12" ry="7" 
+                    fill="currentColor" 
+                    className="text-primary/60"
+                    transform="rotate(30 445 365)"
+                    animate={{ rotate: [25, 35, 25] }}
+                    transition={{ duration: 3, repeat: Infinity, delay: 0.3 }}
+                    style={{ transformOrigin: "445px 370px" }}
                   />
-                  <motion.ellipse
-                    cx="415"
-                    cy="270"
-                    rx="10"
-                    ry="5"
-                    fill="currentColor"
-                    className="text-primary"
-                    transform="rotate(-45 415 270)"
-                    animate={{ rotate: [-45, -50, -45] }}
-                    transition={{ duration: 3, repeat: Infinity, delay: 1 }}
+                  <motion.ellipse 
+                    cx="420" cy="370" rx="10" ry="6" 
+                    fill="currentColor" 
+                    className="text-primary/50"
+                    transform="rotate(-20 420 370)"
+                    animate={{ rotate: [-25, -15, -25] }}
+                    transition={{ duration: 3, repeat: Infinity, delay: 0.6 }}
+                    style={{ transformOrigin: "420px 375px" }}
                   />
-                  <motion.ellipse
-                    cx="425"
-                    cy="275"
-                    rx="10"
-                    ry="5"
-                    fill="currentColor"
-                    className="text-primary"
-                    transform="rotate(45 425 275)"
-                    animate={{ rotate: [45, 50, 45] }}
-                    transition={{ duration: 3, repeat: Infinity, delay: 1.5 }}
+                  
+                  {/* Flower buds */}
+                  <motion.circle 
+                    cx="428" cy="350" r="5" 
+                    fill="currentColor" 
+                    className="text-primary/40"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                  <motion.circle 
+                    cx="442" cy="358" r="4" 
+                    fill="currentColor" 
+                    className="text-primary/30"
+                    animate={{ scale: [1, 1.3, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
                   />
                 </motion.g>
 
-                {/* Small floating particles */}
-                {[...Array(6)].map((_, i) => (
+                {/* Floating sparkles/particles */}
+                {[
+                  { cx: 180, cy: 150, delay: 0 },
+                  { cx: 350, cy: 200, delay: 0.5 },
+                  { cx: 150, cy: 350, delay: 1 },
+                  { cx: 450, cy: 350, delay: 1.5 },
+                  { cx: 320, cy: 100, delay: 2 },
+                ].map((particle, i) => (
                   <motion.circle
                     key={i}
-                    cx={300 + i * 30}
-                    cy={100 + (i % 3) * 50}
-                    r={3 + (i % 2) * 2}
+                    cx={particle.cx}
+                    cy={particle.cy}
+                    r="4"
                     fill="currentColor"
-                    className="text-primary/30"
+                    className="text-primary/40"
                     animate={{
-                      y: [0, -20, 0],
-                      opacity: [0.3, 0.6, 0.3]
+                      y: [0, -15, 0],
+                      opacity: [0.4, 0.8, 0.4],
+                      scale: [1, 1.5, 1]
                     }}
                     transition={{
-                      duration: 3 + i * 0.5,
+                      duration: 3,
                       repeat: Infinity,
-                      delay: i * 0.3
+                      delay: particle.delay
                     }}
                   />
                 ))}
