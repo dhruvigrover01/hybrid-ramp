@@ -1,6 +1,6 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Menu, X, Wallet, Moon, Sun } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -13,22 +13,66 @@ import {
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
 
   const navLinks = [
-    { name: "Home", path: "/" },
-    { name: "Features", path: "/#features" },
-    { name: "How it Works", path: "/#how-it-works" },
-    { name: "Dashboard", path: "/dashboard" },
+    { name: "Home", path: "/", hash: "" },
+    { name: "Features", path: "/", hash: "features" },
+    { name: "How it Works", path: "/", hash: "how-it-works" },
+    { name: "Dashboard", path: "/dashboard", hash: "" },
   ];
+
+  // Handle scroll to section when hash changes
+  useEffect(() => {
+    if (location.hash) {
+      const element = document.getElementById(location.hash.slice(1));
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      }
+    }
+  }, [location]);
+
+  const handleNavClick = (path: string, hash: string) => {
+    setMobileMenuOpen(false);
+    
+    if (hash) {
+      // If we're already on the home page, just scroll to the section
+      if (location.pathname === "/") {
+        const element = document.getElementById(hash);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      } else {
+        // Navigate to home page with hash
+        navigate(`/${hash ? '#' + hash : ''}`);
+      }
+    } else {
+      // Regular navigation
+      navigate(path);
+      // Scroll to top for non-hash navigation
+      if (path === "/") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  };
+
+  const isActive = (path: string, hash: string) => {
+    if (hash) {
+      return location.pathname === "/" && location.hash === `#${hash}`;
+    }
+    return location.pathname === path && !location.hash;
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
             <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-lg">H</span>
             </div>
@@ -40,15 +84,15 @@ const Navbar = () => {
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
-              <Link
+              <button
                 key={link.name}
-                to={link.path}
-                className={`text-sm font-medium transition-colors hover:text-primary ${
-                  location.pathname === link.path ? "text-primary" : "text-muted-foreground"
+                onClick={() => handleNavClick(link.path, link.hash)}
+                className={`text-sm font-medium transition-colors hover:text-primary cursor-pointer ${
+                  isActive(link.path, link.hash) ? "text-primary" : "text-muted-foreground"
                 }`}
               >
                 {link.name}
-              </Link>
+              </button>
             ))}
           </div>
 
@@ -137,16 +181,15 @@ const Navbar = () => {
           >
             <div className="container mx-auto px-4 py-4 space-y-4">
               {navLinks.map((link) => (
-                <Link
+                <button
                   key={link.name}
-                  to={link.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`block py-2 text-sm font-medium transition-colors hover:text-primary ${
-                    location.pathname === link.path ? "text-primary" : "text-muted-foreground"
+                  onClick={() => handleNavClick(link.path, link.hash)}
+                  className={`block w-full text-left py-2 text-sm font-medium transition-colors hover:text-primary ${
+                    isActive(link.path, link.hash) ? "text-primary" : "text-muted-foreground"
                   }`}
                 >
                   {link.name}
-                </Link>
+                </button>
               ))}
               <div className="pt-4 border-t border-border space-y-2">
                 <Link to="/auth" className="block" onClick={() => setMobileMenuOpen(false)}>
