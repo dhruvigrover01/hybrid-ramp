@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
@@ -6,20 +6,22 @@ import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/appStore";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import BuyCryptoModal from "@/components/dashboard/BuyCryptoModal";
 import SellCryptoModal from "@/components/dashboard/SellCryptoModal";
 import SendModal from "@/components/dashboard/SendModal";
+import { isMetaMaskInstalled, formatAddress, SUPPORTED_CHAINS } from "@/lib/wallet";
 import { 
   Wallet, 
   TrendingUp, 
   TrendingDown, 
-  Plus, 
   ArrowUpRight,
   ArrowDownLeft,
   Send,
   RefreshCw,
   ExternalLink,
-  Copy
+  Copy,
+  AlertTriangle
 } from "lucide-react";
 
 const WalletPage = () => {
@@ -27,24 +29,86 @@ const WalletPage = () => {
   const [buyModalOpen, setBuyModalOpen] = useState(false);
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [isMetaMask, setIsMetaMask] = useState(false);
 
-  const { assets, user, walletConnected, connectWallet, disconnectWallet } = useAppStore();
+  const navigate = useNavigate();
+  const { 
+    assets, 
+    walletConnected, 
+    walletInfo,
+    connectWallet, 
+    disconnectWallet,
+    refreshWalletBalance,
+    isConnectingWallet,
+    walletError,
+    isAuthenticated,
+    marketPrices,
+    fetchMarketPrices
+  } = useAppStore();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+    setIsMetaMask(isMetaMaskInstalled());
+    fetchMarketPrices();
+  }, [isAuthenticated, navigate, fetchMarketPrices]);
+
+  // Calculate with real prices
+  const assetsWithPrices = assets.map(asset => {
+    const priceData = marketPrices[asset.symbol];
+    const price = priceData?.price || asset.price;
+    const change24h = priceData?.change24h || asset.change24h;
+    const usdValue = asset.balance * price;
+    return { ...asset, price, change24h, usdValue };
+  });
   
-  const totalValue = assets.reduce((sum, asset) => sum + asset.usdValue, 0);
-  const totalChange = ((assets.reduce((sum, asset) => sum + asset.usdValue * (asset.change24h / 100), 0) / totalValue) * 100);
+  const totalValue = assetsWithPrices.reduce((sum, asset) => sum + asset.usdValue, 0);
+  const totalChange = totalValue > 0 
+    ? assetsWithPrices.reduce((sum, asset) => sum + (asset.usdValue * asset.change24h / 100), 0) / totalValue * 100
+    : 0;
 
   const handleConnect = async () => {
-    const mockAddress = `0x${Math.random().toString(16).slice(2, 10)}${Math.random().toString(16).slice(2, 10)}`;
-    connectWallet(mockAddress);
-    toast.success("Wallet connected!");
+    try {
+      await connectWallet();
+      toast.success("Wallet connected successfully!");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to connect wallet";
+      toast.error(message);
+    }
+  };
+
+  const handleDisconnect = () => {
+    disconnectWallet();
+    toast.info("Wallet disconnected");
   };
 
   const handleCopyAddress = () => {
-    if (user?.walletAddress) {
-      navigator.clipboard.writeText(user.walletAddress);
+    if (walletInfo?.address) {
+      navigator.clipboard.writeText(walletInfo.address);
       toast.success("Address copied to clipboard!");
     }
   };
+
+  const handleRefresh = async () => {
+    await refreshWalletBalance();
+    await fetchMarketPrices();
+    toast.success("Data refreshed!");
+  };
+
+  const openExplorer = () => {
+    if (walletInfo) {
+      const chain = SUPPORTED_CHAINS[walletInfo.chainId as keyof typeof SUPPORTED_CHAINS];
+      if (chain) {
+        window.open(`${chain.explorer}/address/${walletInfo.address}`, "_blank");
+      }
+    }
+  };
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <>
@@ -101,13 +165,56 @@ const WalletPage = () => {
                   <div className="w-20 h-20 rounded-2xl bg-primary/20 mx-auto flex items-center justify-center mb-6">
                     <Wallet className="w-10 h-10 text-primary" />
                   </div>
+                  
+                  {!isMetaMask && (
+                    <div className="max-w-md mx-auto mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                      <div className="flex items-center gap-2 text-amber-500 mb-2">
+                        <AlertTriangle className="w-5 h-5" />
+                        <p className="font-medium">MetaMask Not Detected</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Please install MetaMask extension to connect your wallet
+                      </p>
+                      <a
+                        href="https://metamask.io/download/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline mt-2 inline-block"
+                      >
+                        Download MetaMask →
+                      </a>
+                    </div>
+                  )}
+                  
+                  {walletError && (
+                    <div className="max-w-md mx-auto mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20">
+                      <p className="text-sm text-destructive">{walletError}</p>
+                    </div>
+                  )}
+                  
                   <h2 className="text-xl font-heading font-semibold mb-2">Connect Your Wallet</h2>
                   <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    Connect your wallet to view your full portfolio and enable seamless transactions
+                    {isMetaMask 
+                      ? "Connect MetaMask to view your portfolio and enable seamless transactions"
+                      : "Install MetaMask to get started with crypto trading"}
                   </p>
-                  <Button variant="hero" size="lg" onClick={handleConnect}>
-                    <Wallet className="w-5 h-5 mr-2" />
-                    Connect Wallet
+                  <Button 
+                    variant="hero" 
+                    size="lg" 
+                    onClick={handleConnect}
+                    disabled={isConnectingWallet || !isMetaMask}
+                  >
+                    {isConnectingWallet ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                        Connecting...
+                      </span>
+                    ) : (
+                      <>
+                        <Wallet className="w-5 h-5 mr-2" />
+                        {isMetaMask ? "Connect MetaMask" : "Install MetaMask"}
+                      </>
+                    )}
                   </Button>
                 </motion.div>
               ) : (
@@ -125,16 +232,26 @@ const WalletPage = () => {
                           <Wallet className="w-7 h-7 text-primary-foreground" />
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">Connected Wallet</p>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm text-muted-foreground">MetaMask</p>
+                            <span className="text-xs bg-secondary px-2 py-0.5 rounded">
+                              {walletInfo?.chainName}
+                            </span>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <p className="font-mono font-medium">{user?.walletAddress}</p>
+                            <p className="font-mono font-medium">
+                              {walletInfo?.address ? formatAddress(walletInfo.address) : ""}
+                            </p>
                             <button onClick={handleCopyAddress} className="text-muted-foreground hover:text-primary">
                               <Copy className="w-4 h-4" />
                             </button>
-                            <a href="#" className="text-muted-foreground hover:text-primary">
+                            <button onClick={openExplorer} className="text-muted-foreground hover:text-primary">
                               <ExternalLink className="w-4 h-4" />
-                            </a>
+                            </button>
                           </div>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Balance: {parseFloat(walletInfo?.balance || "0").toFixed(4)} ETH
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -142,7 +259,7 @@ const WalletPage = () => {
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                           Connected
                         </span>
-                        <Button variant="outline" size="sm" onClick={disconnectWallet}>
+                        <Button variant="outline" size="sm" onClick={handleDisconnect}>
                           Disconnect
                         </Button>
                       </div>
@@ -158,12 +275,14 @@ const WalletPage = () => {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-muted-foreground">Total Portfolio Value</p>
-                      <span className={`flex items-center gap-1 text-sm font-medium ${
-                        totalChange >= 0 ? "text-emerald-500" : "text-red-500"
-                      }`}>
-                        {totalChange >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                        {totalChange >= 0 ? "+" : ""}{totalChange.toFixed(2)}% (24h)
-                      </span>
+                      {totalValue > 0 && (
+                        <span className={`flex items-center gap-1 text-sm font-medium ${
+                          totalChange >= 0 ? "text-emerald-500" : "text-red-500"
+                        }`}>
+                          {totalChange >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                          {totalChange >= 0 ? "+" : ""}{totalChange.toFixed(2)}% (24h)
+                        </span>
+                      )}
                     </div>
                     <div className="text-4xl lg:text-5xl font-heading font-bold">
                       ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -181,89 +300,101 @@ const WalletPage = () => {
               >
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-heading font-semibold">Your Assets</h3>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={handleRefresh}>
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Refresh
                   </Button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-left text-sm text-muted-foreground border-b border-border">
-                        <th className="pb-4 font-medium">Asset</th>
-                        <th className="pb-4 font-medium">Balance</th>
-                        <th className="pb-4 font-medium">Price</th>
-                        <th className="pb-4 font-medium">24h Change</th>
-                        <th className="pb-4 font-medium">Value</th>
-                        <th className="pb-4 font-medium text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assets.map((asset, index) => (
-                        <motion.tr
-                          key={asset.symbol}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.1 + index * 0.05 }}
-                          className="border-b border-border/50 last:border-0"
-                        >
-                          <td className="py-4">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                asset.symbol === "BTC" ? "bg-amber-500/20" :
-                                asset.symbol === "ETH" ? "bg-blue-500/20" :
-                                asset.symbol === "USDT" ? "bg-emerald-500/20" :
-                                "bg-violet-500/20"
-                              }`}>
-                                <span className={`font-bold ${
-                                  asset.symbol === "BTC" ? "text-amber-500" :
-                                  asset.symbol === "ETH" ? "text-blue-500" :
-                                  asset.symbol === "USDT" ? "text-emerald-500" :
-                                  "text-violet-500"
+                {assetsWithPrices.filter(a => a.balance > 0).length === 0 ? (
+                  <div className="text-center py-12">
+                    <Wallet className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No assets in your portfolio yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Buy some crypto to get started!</p>
+                    <Button variant="hero" className="mt-4" onClick={() => setBuyModalOpen(true)}>
+                      <ArrowDownLeft className="w-4 h-4 mr-2" />
+                      Buy Crypto
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left text-sm text-muted-foreground border-b border-border">
+                          <th className="pb-4 font-medium">Asset</th>
+                          <th className="pb-4 font-medium">Balance</th>
+                          <th className="pb-4 font-medium">Price</th>
+                          <th className="pb-4 font-medium">24h Change</th>
+                          <th className="pb-4 font-medium">Value</th>
+                          <th className="pb-4 font-medium text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {assetsWithPrices.filter(a => a.balance > 0).map((asset, index) => (
+                          <motion.tr
+                            key={asset.symbol}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 + index * 0.05 }}
+                            className="border-b border-border/50 last:border-0"
+                          >
+                            <td className="py-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  asset.symbol === "BTC" ? "bg-amber-500/20" :
+                                  asset.symbol === "ETH" ? "bg-blue-500/20" :
+                                  asset.symbol === "USDT" ? "bg-emerald-500/20" :
+                                  "bg-violet-500/20"
                                 }`}>
-                                  {asset.icon}
-                                </span>
+                                  <span className={`font-bold ${
+                                    asset.symbol === "BTC" ? "text-amber-500" :
+                                    asset.symbol === "ETH" ? "text-blue-500" :
+                                    asset.symbol === "USDT" ? "text-emerald-500" :
+                                    "text-violet-500"
+                                  }`}>
+                                    {asset.icon}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="font-medium">{asset.name}</p>
+                                  <p className="text-sm text-muted-foreground">{asset.symbol}</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="font-medium">{asset.name}</p>
-                                <p className="text-sm text-muted-foreground">{asset.symbol}</p>
+                            </td>
+                            <td className="py-4">
+                              <p className="font-medium">{asset.balance.toFixed(asset.balance < 1 ? 6 : 4)}</p>
+                              <p className="text-sm text-muted-foreground">{asset.symbol}</p>
+                            </td>
+                            <td className="py-4">
+                              <p className="font-medium">${asset.price.toLocaleString()}</p>
+                            </td>
+                            <td className="py-4">
+                              <span className={`inline-flex items-center gap-1 ${
+                                asset.change24h >= 0 ? "text-emerald-500" : "text-red-500"
+                              }`}>
+                                {asset.change24h >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                {asset.change24h >= 0 ? "+" : ""}{asset.change24h.toFixed(2)}%
+                              </span>
+                            </td>
+                            <td className="py-4">
+                              <p className="font-medium">${asset.usdValue.toLocaleString()}</p>
+                            </td>
+                            <td className="py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button variant="ghost" size="sm" onClick={() => setBuyModalOpen(true)}>
+                                  Buy
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setSellModalOpen(true)}>
+                                  Sell
+                                </Button>
                               </div>
-                            </div>
-                          </td>
-                          <td className="py-4">
-                            <p className="font-medium">{asset.balance.toFixed(6)}</p>
-                            <p className="text-sm text-muted-foreground">{asset.symbol}</p>
-                          </td>
-                          <td className="py-4">
-                            <p className="font-medium">${asset.price.toLocaleString()}</p>
-                          </td>
-                          <td className="py-4">
-                            <span className={`inline-flex items-center gap-1 ${
-                              asset.change24h >= 0 ? "text-emerald-500" : "text-red-500"
-                            }`}>
-                              {asset.change24h >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                              {asset.change24h >= 0 ? "+" : ""}{asset.change24h}%
-                            </span>
-                          </td>
-                          <td className="py-4">
-                            <p className="font-medium">${asset.usdValue.toLocaleString()}</p>
-                          </td>
-                          <td className="py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button variant="ghost" size="sm" onClick={() => setBuyModalOpen(true)}>
-                                Buy
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => setSellModalOpen(true)}>
-                                Sell
-                              </Button>
-                            </div>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </motion.div>
             </div>
           </main>
@@ -278,4 +409,3 @@ const WalletPage = () => {
 };
 
 export default WalletPage;
-

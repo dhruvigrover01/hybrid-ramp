@@ -1,13 +1,20 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Menu, X, Wallet, ChevronDown } from "lucide-react";
+import { Menu, X, Wallet, Moon, Sun } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "@/contexts/ThemeContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Navbar = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isHome = location.pathname === "/";
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   const navLinks = [
     { name: "Home", path: "/" },
@@ -47,6 +54,42 @@ const Navbar = () => {
 
           {/* Desktop CTA */}
           <div className="hidden lg:flex items-center gap-4">
+            {/* Theme Toggle */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+                  {resolvedTheme === "dark" ? (
+                    <Moon className="w-5 h-5" />
+                  ) : (
+                    <Sun className="w-5 h-5" />
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuItem 
+                  onClick={() => setTheme("light")}
+                  className={theme === "light" ? "bg-secondary" : ""}
+                >
+                  <Sun className="w-4 h-4 mr-2" />
+                  Light
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setTheme("dark")}
+                  className={theme === "dark" ? "bg-secondary" : ""}
+                >
+                  <Moon className="w-4 h-4 mr-2" />
+                  Dark
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setTheme("system")}
+                  className={theme === "system" ? "bg-secondary" : ""}
+                >
+                  <span className="w-4 h-4 mr-2 flex items-center justify-center text-xs">💻</span>
+                  System
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Link to="/auth">
               <Button variant="ghost" size="sm">
                 Sign In
@@ -61,12 +104,25 @@ const Navbar = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            className="lg:hidden p-2 text-foreground"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="lg:hidden flex items-center gap-2">
+            {/* Mobile Theme Toggle */}
+            <button
+              className="p-2 text-muted-foreground hover:text-foreground"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            >
+              {resolvedTheme === "dark" ? (
+                <Moon className="w-5 h-5" />
+              ) : (
+                <Sun className="w-5 h-5" />
+              )}
+            </button>
+            <button
+              className="p-2 text-foreground"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
       </div>
 

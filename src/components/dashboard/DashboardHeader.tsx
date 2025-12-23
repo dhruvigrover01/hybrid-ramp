@@ -1,6 +1,13 @@
 import { Button } from "@/components/ui/button";
-import { Menu, Bell, Plus, FlaskConical } from "lucide-react";
+import { Menu, Bell, Plus, FlaskConical, Moon, Sun } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
+import { useTheme } from "@/contexts/ThemeContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface DashboardHeaderProps {
   onMenuClick: () => void;
@@ -9,8 +16,9 @@ interface DashboardHeaderProps {
 
 const DashboardHeader = ({ onMenuClick, onBuyClick }: DashboardHeaderProps) => {
   const walletConnected = useAppStore((state) => state.walletConnected);
-  const user = useAppStore((state) => state.user);
+  const walletInfo = useAppStore((state) => state.walletInfo);
   const isPracticeMode = useAppStore((state) => state.isPracticeMode);
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   return (
     <header className="fixed top-0 right-0 left-0 lg:left-64 h-16 bg-card/80 backdrop-blur-sm border-b border-border z-30">
@@ -36,12 +44,48 @@ const DashboardHeader = ({ onMenuClick, onBuyClick }: DashboardHeaderProps) => {
 
         {/* Right Section */}
         <div className="flex items-center gap-3">
+          {/* Theme Toggle */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+                {resolvedTheme === "dark" ? (
+                  <Moon className="w-5 h-5" />
+                ) : (
+                  <Sun className="w-5 h-5" />
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem 
+                onClick={() => setTheme("light")}
+                className={theme === "light" ? "bg-secondary" : ""}
+              >
+                <Sun className="w-4 h-4 mr-2" />
+                Light
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setTheme("dark")}
+                className={theme === "dark" ? "bg-secondary" : ""}
+              >
+                <Moon className="w-4 h-4 mr-2" />
+                Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setTheme("system")}
+                className={theme === "system" ? "bg-secondary" : ""}
+              >
+                <span className="w-4 h-4 mr-2 flex items-center justify-center text-xs">💻</span>
+                System
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {/* Wallet Status */}
-          {!isPracticeMode && walletConnected && user?.walletAddress && (
+          {!isPracticeMode && walletConnected && walletInfo?.address && (
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
               <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span className="text-sm text-primary font-medium">
-                {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
+                {walletInfo.address.slice(0, 6)}...{walletInfo.address.slice(-4)}
               </span>
             </div>
           )}
