@@ -9,7 +9,9 @@ import {
   LogOut,
   X,
   TrendingUp,
-  FileCheck
+  FileCheck,
+  Heart,
+  BookOpen
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +25,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Wallet, label: "Wallet", path: "/dashboard/wallet" },
   { icon: ArrowUpDown, label: "Transactions", path: "/dashboard/transactions" },
+  { icon: Heart, label: "Safety & Learning", path: "/dashboard/safety", highlight: true },
   { icon: FileCheck, label: "KYC", path: "/dashboard/kyc" },
   { icon: Shield, label: "Security", path: "/dashboard/security" },
   { icon: Settings, label: "Settings", path: "/dashboard/settings" },
@@ -109,6 +112,7 @@ const DashboardSidebar = ({ isOpen, onClose }: DashboardSidebarProps) => {
           <nav className="flex-1 p-4 space-y-1">
             {menuItems.map((item) => {
               const isActive = location.pathname === item.path;
+              const isHighlight = 'highlight' in item && item.highlight;
               return (
                 <Link
                   key={item.path}
@@ -117,11 +121,18 @@ const DashboardSidebar = ({ isOpen, onClose }: DashboardSidebarProps) => {
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                     isActive
                       ? "bg-primary/10 text-primary"
+                      : isHighlight
+                      ? "text-rose-500 hover:bg-rose-500/10"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
+                  <item.icon className={`w-5 h-5 ${isHighlight && !isActive ? "text-rose-500" : ""}`} />
                   <span className="font-medium">{item.label}</span>
+                  {isHighlight && !isActive && (
+                    <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-500">
+                      NEW
+                    </span>
+                  )}
                   {isActive && (
                     <motion.div
                       layoutId="activeIndicator"

@@ -17,9 +17,22 @@ import PracticePortfolio from "@/components/dashboard/PracticePortfolio";
 import PracticeTradeModal from "@/components/dashboard/PracticeTradeModal";
 import AICoachPanel from "@/components/dashboard/AICoachPanel";
 import SafetyWarnings from "@/components/dashboard/SafetyWarnings";
+import { 
+  WhyModeModal, 
+  BehaviorProfileCard, 
+  TradeReflectionPanel,
+  SafetyGateAlert,
+  SafetyGateBlockScreen,
+  TimeLockModal,
+  HarmPreventionPanel,
+  CryptoLicenseGrid,
+  LicenseQuizModal
+} from "@/components/safety";
 import { useAppStore } from "@/store/appStore";
+import { useSafetyStore, TradeAlternative, LearningQuiz } from "@/store/safetyStore";
 import { useNavigate } from "react-router-dom";
-import { FlaskConical, Sparkles, RefreshCw, ArrowDownLeft, ArrowUpRight, Send } from "lucide-react";
+import { toast } from "sonner";
+import { FlaskConical, Sparkles, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Shield, BookOpen } from "lucide-react";
 
 const Dashboard = () => {
   const [buyModalOpen, setBuyModalOpen] = useState(false);
@@ -29,6 +42,11 @@ const Dashboard = () => {
   const [practiceTradeOpen, setPracticeTradeOpen] = useState(false);
   const [practiceTradeType, setPracticeTradeType] = useState<"buy" | "sell">("buy");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [whyModalOpen, setWhyModalOpen] = useState(false);
+  const [timeLockOpen, setTimeLockOpen] = useState(false);
+  const [quizModalOpen, setQuizModalOpen] = useState(false);
+  const [currentQuiz, setCurrentQuiz] = useState<LearningQuiz | null>(null);
+  const [pendingTradeAction, setPendingTradeAction] = useState<(() => void) | null>(null);
   
   const { 
     isAuthenticated, 
@@ -37,8 +55,37 @@ const Dashboard = () => {
     isReadyForRealTrading, 
     fetchMarketPrices,
     isLoadingPrices,
-    lastPriceUpdate 
+    lastPriceUpdate,
+    marketPrices,
+    tradingBehavior,
+    transactions,
+    togglePracticeMode,
+    practicePortfolio,
+    assets
   } = useAppStore();
+  
+  const {
+    whyModeEnabled,
+    pendingRiskExplanation,
+    analyzeTradeRisk,
+    dismissRiskExplanation,
+    behaviorProfile,
+    tradeReflections,
+    cryptoLicenses,
+    checkLicenseForAsset,
+    safetyGateStatus,
+    checkSafetyGate,
+    pendingTimeLock,
+    createTimeLock,
+    confirmTimeLock,
+    cancelTimeLock,
+    harmPreventionMetrics,
+    recordPreventedRisk,
+    generateQuiz,
+    completeQuiz,
+    updateLicenseProgress
+  } = useSafetyStore();
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -58,6 +105,84 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [isAuthenticated, navigate, fetchMarketPrices]);
 
+  // Check safety gate when trading behavior changes
+  useEffect(() => {
+    if (!isPracticeMode) {
+      checkSafetyGate(tradingBehavior, transactions.slice(0, 10));
+    }
+  }, [tradingBehavior, transactions, isPracticeMode, checkSafetyGate]);
+
+  const calculatePortfolioValue = () => {
+    if (isPracticeMode) {
+      return practicePortfolio.totalValue;
+    }
+    return assets.reduce((sum, asset) => {
+      const price = marketPrices[asset.symbol]?.price || asset.price;
+      return sum + (asset.balance * price);
+    }, 0);
+  };
+
+  const handleTradeWithSafety = (
+    type: "buy" | "sell",
+    asset: string,
+    amount: number,
+    openModal: () => void
+  ) => {
+    // Skip safety checks in practice mode
+    if (isPracticeMode) {
+      openModal();
+      return;
+    }
+
+    // Check if blocked by safety gate
+    if (safetyGateStatus.isBlocked) {
+      toast.error("Trading is temporarily paused. Please wait or switch to Practice Mode.");
+      return;
+    }
+
+    const price = marketPrices[asset]?.price || 0;
+    const usdValue = amount * price;
+    const portfolioValue = calculatePortfolioValue();
+
+    // Check license for high-risk assets
+    const license = checkLicenseForAsset(asset);
+    if (!license.unlocked) {
+      toast.error(`You need to unlock the ${asset} license first. Complete the requirements to trade this asset.`);
+      return;
+    }
+
+    // WHY Mode check for risky trades
+    if (whyModeEnabled) {
+      const riskAnalysis = analyzeTradeRisk(
+        asset, amount, type, price, portfolioValue, tradingBehavior, marketPrices
+      );
+
+      if (riskAnalysis.overallRisk !== "low") {
+        setPendingTradeAction(() => () => {
+          // Check if time-lock needed for large trades
+          if (usdValue > 500) {
+            createTimeLock(asset, amount, type, usdValue);
+            setTimeLockOpen(true);
+          } else {
+            openModal();
+          }
+        });
+        setWhyModalOpen(true);
+        return;
+      }
+    }
+
+    // Time-lock for large trades
+    if (usdValue > 500) {
+      createTimeLock(asset, amount, type, usdValue);
+      setTimeLockOpen(true);
+      setPendingTradeAction(() => openModal);
+      return;
+    }
+
+    openModal();
+  };
+
   const handleQuickAction = (action: string) => {
     if (isPracticeMode) {
       if (action === "buy" || action === "sell") {
@@ -65,6 +190,8 @@ const Dashboard = () => {
         setPracticeTradeOpen(true);
       }
     } else {
+      // For quick actions, we'll open the modal directly
+      // The actual trade execution will go through safety checks
       switch (action) {
         case "buy":
           setBuyModalOpen(true);
@@ -82,8 +209,94 @@ const Dashboard = () => {
     }
   };
 
+  const handleWhyModeAlternative = (alternative: TradeAlternative) => {
+    dismissRiskExplanation();
+    setWhyModalOpen(false);
+    recordPreventedRisk("why_mode", pendingRiskExplanation?.usdValue || 0);
+
+    switch (alternative.action) {
+      case "practice_mode":
+        togglePracticeMode();
+        toast.success("Switched to Practice Mode. Try your strategy with virtual funds!");
+        break;
+      case "reduce_amount":
+        toast.info(`Consider reducing your trade to $${alternative.suggestedValue?.toLocaleString()}`);
+        break;
+      case "wait":
+        toast.info("Good choice! Wait for the market to stabilize before trading.");
+        break;
+      case "dca":
+        toast.info("Dollar-cost averaging is a great strategy. Split your purchase over time.");
+        break;
+      case "set_limit":
+        toast.info("Setting a limit order can help you get a better price.");
+        break;
+    }
+  };
+
+  const handleWhyModeProceed = () => {
+    dismissRiskExplanation();
+    setWhyModalOpen(false);
+    if (pendingTradeAction) {
+      pendingTradeAction();
+      setPendingTradeAction(null);
+    }
+  };
+
+  const handleTimeLockConfirm = () => {
+    if (pendingTimeLock) {
+      confirmTimeLock(pendingTimeLock.id);
+      setTimeLockOpen(false);
+      if (pendingTradeAction) {
+        pendingTradeAction();
+        setPendingTradeAction(null);
+      }
+    }
+  };
+
+  const handleTimeLockCancel = () => {
+    cancelTimeLock();
+    setTimeLockOpen(false);
+    setPendingTradeAction(null);
+    toast.info("Trade cancelled. Take your time to reconsider.");
+  };
+
+  const handleStartQuiz = (asset: string) => {
+    const quiz = generateQuiz(asset);
+    setCurrentQuiz(quiz);
+    setQuizModalOpen(true);
+  };
+
+  const handleQuizComplete = (correct: boolean) => {
+    if (correct && currentQuiz) {
+      completeQuiz(currentQuiz.id, currentQuiz.asset);
+      updateLicenseProgress(currentQuiz.asset, "quiz", 1);
+      toast.success("Quiz completed! Progress updated.");
+    }
+    setQuizModalOpen(false);
+    setCurrentQuiz(null);
+  };
+
+  const handleSwitchToPractice = () => {
+    if (!isPracticeMode) {
+      togglePracticeMode();
+      toast.success("Switched to Practice Mode for your safety.");
+    }
+  };
+
   if (!isAuthenticated) {
     return null;
+  }
+
+  // Show block screen if trading is blocked
+  if (safetyGateStatus.isBlocked && !isPracticeMode) {
+    return (
+      <SafetyGateBlockScreen 
+        status={safetyGateStatus}
+        onSwitchToPractice={handleSwitchToPractice}
+        onUnblock={() => {}}
+      />
+    );
   }
 
   return (
@@ -134,6 +347,14 @@ const Dashboard = () => {
 
               {/* Practice Mode Toggle */}
               <PracticeModeToggle />
+
+              {/* Safety Gate Alert */}
+              {!isPracticeMode && safetyGateStatus.emotionalState !== "calm" && (
+                <SafetyGateAlert 
+                  status={safetyGateStatus}
+                  onSwitchToPractice={handleSwitchToPractice}
+                />
+              )}
 
               {/* Ready for Real Trading Banner */}
               {isPracticeMode && isReadyForRealTrading && (
@@ -224,11 +445,15 @@ const Dashboard = () => {
                     <>
                       <PracticePortfolio />
                       <AICoachPanel />
+                      <TradeReflectionPanel reflections={tradeReflections} />
                     </>
                   ) : (
                     <>
                       <PortfolioOverview />
                       <TransactionHistory />
+                      
+                      {/* Harm Prevention Panel */}
+                      <HarmPreventionPanel metrics={harmPreventionMetrics} />
                     </>
                   )}
                 </div>
@@ -236,8 +461,50 @@ const Dashboard = () => {
                 {/* Right Sidebar */}
                 <div className="space-y-6">
                   {!isPracticeMode && <WalletConnect />}
+                  
+                  {/* Behavior Profile */}
+                  <BehaviorProfileCard profile={behaviorProfile} compact />
+                  
                   <KycStatus />
                   <RiskTier />
+                  
+                  {/* Crypto Licenses - Compact View */}
+                  {Object.keys(cryptoLicenses).length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="glass rounded-2xl p-4"
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <Shield className="w-5 h-5 text-primary" />
+                        <h3 className="font-semibold">Asset Licenses</h3>
+                      </div>
+                      <div className="space-y-2">
+                        {Object.values(cryptoLicenses).slice(0, 3).map(license => (
+                          <div 
+                            key={license.asset}
+                            className={`flex items-center justify-between p-2 rounded-lg ${
+                              license.unlocked ? "bg-emerald-500/10" : "bg-secondary"
+                            }`}
+                          >
+                            <span className="font-medium">{license.asset}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              license.unlocked 
+                                ? "bg-emerald-500/20 text-emerald-500" 
+                                : "bg-amber-500/20 text-amber-500"
+                            }`}>
+                              {license.unlocked ? "Unlocked" : "Locked"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {Object.keys(cryptoLicenses).length > 3 && (
+                        <p className="text-xs text-muted-foreground text-center mt-2">
+                          +{Object.keys(cryptoLicenses).length - 3} more
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
                 </div>
               </div>
 
@@ -255,6 +522,15 @@ const Dashboard = () => {
                   <TransactionHistory />
                 </motion.div>
               )}
+
+              {/* Full Crypto License Grid (if user has licenses) */}
+              {Object.keys(cryptoLicenses).length > 0 && (
+                <CryptoLicenseGrid 
+                  licenses={cryptoLicenses}
+                  onStartQuiz={handleStartQuiz}
+                  onViewRequirements={(asset) => toast.info(`View requirements for ${asset}`)}
+                />
+              )}
             </div>
           </main>
         </div>
@@ -268,6 +544,36 @@ const Dashboard = () => {
           isOpen={practiceTradeOpen} 
           onClose={() => setPracticeTradeOpen(false)} 
           defaultTab={practiceTradeType}
+        />
+        
+        {/* Safety Modals */}
+        <WhyModeModal
+          isOpen={whyModalOpen}
+          onClose={() => {
+            setWhyModalOpen(false);
+            dismissRiskExplanation();
+            setPendingTradeAction(null);
+          }}
+          riskExplanation={pendingRiskExplanation}
+          onProceed={handleWhyModeProceed}
+          onAlternative={handleWhyModeAlternative}
+        />
+        
+        <TimeLockModal
+          isOpen={timeLockOpen}
+          timeLock={pendingTimeLock}
+          onConfirm={handleTimeLockConfirm}
+          onCancel={handleTimeLockCancel}
+        />
+        
+        <LicenseQuizModal
+          isOpen={quizModalOpen}
+          onClose={() => {
+            setQuizModalOpen(false);
+            setCurrentQuiz(null);
+          }}
+          quiz={currentQuiz}
+          onComplete={handleQuizComplete}
         />
       </div>
     </>
