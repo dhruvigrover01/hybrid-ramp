@@ -1,13 +1,25 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, Bell, Plus, FlaskConical, Moon, Sun } from "lucide-react";
+import { Menu, Bell, Plus, FlaskConical, Moon, Sun, TrendingUp, TrendingDown, Shield, AlertTriangle, CheckCircle, X } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useTheme } from "@/contexts/ThemeContext";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+
+interface Notification {
+  id: string;
+  type: "success" | "warning" | "info" | "trade";
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+}
 
 interface DashboardHeaderProps {
   onMenuClick: () => void;
@@ -18,7 +30,97 @@ const DashboardHeader = ({ onMenuClick, onBuyClick }: DashboardHeaderProps) => {
   const walletConnected = useAppStore((state) => state.walletConnected);
   const walletInfo = useAppStore((state) => state.walletInfo);
   const isPracticeMode = useAppStore((state) => state.isPracticeMode);
+  const transactions = useAppStore((state) => state.transactions);
+  const practiceTransactions = useAppStore((state) => state.practiceTransactions);
+  const safetyWarnings = useAppStore((state) => state.safetyWarnings);
   const { theme, setTheme, resolvedTheme } = useTheme();
+  
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    // Generate notifications from recent activity
+    const notifs: Notification[] = [];
+    
+    // Add transaction notifications
+    const recentTxs = isPracticeMode 
+      ? practiceTransactions.slice(0, 3) 
+      : transactions.slice(0, 3);
+    
+    recentTxs.forEach((tx, i) => {
+      notifs.push({
+        id: `tx-${tx.id}`,
+        type: "trade",
+        title: `${tx.type.charAt(0).toUpperCase() + tx.type.slice(1)} Order ${tx.status}`,
+        message: `${tx.amount} ${tx.asset} - $${tx.usdValue.toLocaleString()}`,
+        time: new Date(tx.timestamp).toLocaleTimeString(),
+        read: i > 0,
+      });
+    });
+    
+    // Add safety warnings
+    safetyWarnings.slice(0, 2).forEach((warning, i) => {
+      notifs.push({
+        id: warning.id,
+        type: "warning",
+        title: "Safety Alert",
+        message: warning.message,
+        time: "Recently",
+        read: i > 0,
+      });
+    });
+    
+    // Add default notifications if empty
+    if (notifs.length === 0) {
+      notifs.push(
+        {
+          id: "welcome",
+          type: "info",
+          title: "Welcome to HybridRampX!",
+          message: "Start trading safely with our beginner-friendly platform.",
+          time: "Now",
+          read: false,
+        },
+        {
+          id: "kyc",
+          type: "info",
+          title: "Complete Your KYC",
+          message: "Verify your identity to unlock higher trading limits.",
+          time: "Today",
+          read: true,
+        }
+      );
+    }
+    
+    return notifs;
+  });
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markAsRead = (id: string) => {
+    setNotifications(prev => 
+      prev.map(n => n.id === id ? { ...n, read: true } : n)
+    );
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const clearNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case "success":
+        return <CheckCircle className="w-4 h-4 text-emerald-500" />;
+      case "warning":
+        return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+      case "trade":
+        return <TrendingUp className="w-4 h-4 text-primary" />;
+      default:
+        return <Shield className="w-4 h-4 text-blue-500" />;
+    }
+  };
 
   return (
     <header className="fixed top-0 right-0 left-0 lg:left-64 h-16 bg-card/80 backdrop-blur-sm border-b border-border z-30">
@@ -100,11 +202,89 @@ const DashboardHeader = ({ onMenuClick, onBuyClick }: DashboardHeaderProps) => {
             </div>
           )}
 
-          {/* Notifications */}
-          <button className="relative p-2 text-muted-foreground hover:text-foreground transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
-          </button>
+          {/* Notifications Dropdown */}
+          <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+            <DropdownMenuTrigger asChild>
+              <button className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary">
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary text-[10px] text-primary-foreground flex items-center justify-center font-medium">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 p-0">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <h3 className="font-semibold">Notifications</h3>
+                {unreadCount > 0 && (
+                  <button 
+                    onClick={markAllAsRead}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
+              
+              <div className="max-h-80 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground">
+                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No notifications yet</p>
+                  </div>
+                ) : (
+                  <AnimatePresence>
+                    {notifications.map((notification) => (
+                      <motion.div
+                        key={notification.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className={`flex items-start gap-3 p-3 border-b border-border last:border-0 hover:bg-secondary/50 transition-colors ${
+                          !notification.read ? "bg-primary/5" : ""
+                        }`}
+                        onClick={() => markAsRead(notification.id)}
+                      >
+                        <div className="mt-0.5">
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-medium text-sm">{notification.title}</p>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                clearNotification(notification.id);
+                              }}
+                              className="text-muted-foreground hover:text-foreground p-0.5"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
+                        </div>
+                        {!notification.read && (
+                          <span className="w-2 h-2 rounded-full bg-primary mt-1.5" />
+                        )}
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+              
+              <DropdownMenuSeparator />
+              <div className="p-2">
+                <button 
+                  className="w-full text-center text-sm text-primary hover:underline py-2"
+                  onClick={() => setNotificationsOpen(false)}
+                >
+                  View all notifications
+                </button>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Buy Button */}
           <Button 
