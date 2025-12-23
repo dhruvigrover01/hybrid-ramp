@@ -158,7 +158,7 @@ const Hero = () => {
                     key={coin.id}
                     initial={{ y: -100, x: coin.x, opacity: 0, rotate: coin.rotation }}
                     animate={{
-                      y: [−100, 600],
+                      y: [-100, 600],
                       opacity: [0, 1, 1, 0],
                       rotate: [coin.rotation, coin.rotation + 720],
                     }}
