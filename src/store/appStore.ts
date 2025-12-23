@@ -831,41 +831,45 @@ export const useAppStore = create<AppState>()(
       
       uploadKycDocument: async (docType, file) => {
         // In production, upload to your server/cloud storage
+        // For demo, we simulate the upload without storing large file data
         await new Promise((resolve) => setTimeout(resolve, 2000));
         
-        // Convert file to base64 for demo (in production, use proper file storage)
-        const reader = new FileReader();
-        const fileData = await new Promise<string>((resolve) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
+        // Simulate successful upload - in production, you'd get a URL back from your server
+        const uploadSuccess = file.size > 0 && file.size < 10 * 1024 * 1024; // Max 10MB
+        
+        if (!uploadSuccess) {
+          throw new Error("File too large. Maximum size is 10MB.");
+        }
         
         set((state) => {
           if (!state.user) return state;
           
+          // Only store upload status, not the actual file data
           const newDocs = { ...state.user.kycDocuments };
           if (docType === "id") {
             newDocs.idUploaded = true;
-            newDocs.idFile = fileData;
+            // In production: newDocs.idFile = serverReturnedUrl;
           }
           if (docType === "addressProof") {
             newDocs.addressProofUploaded = true;
-            newDocs.addressProofFile = fileData;
           }
           if (docType === "selfie") {
             newDocs.selfieUploaded = true;
-            newDocs.selfieFile = fileData;
           }
           
           let newTier = state.user.kycTier;
           if (newDocs.idUploaded && newTier < 2) newTier = 2;
           if (newDocs.idUploaded && newDocs.addressProofUploaded && newDocs.selfieUploaded && newTier < 3) newTier = 3;
           
-          // Save to localStorage
+          // Save to localStorage (without file data)
           const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
           const userIndex = users.findIndex((u: { email: string }) => u.email === state.user!.email);
           if (userIndex >= 0) {
-            users[userIndex].kycDocuments = newDocs;
+            users[userIndex].kycDocuments = {
+              idUploaded: newDocs.idUploaded,
+              addressProofUploaded: newDocs.addressProofUploaded,
+              selfieUploaded: newDocs.selfieUploaded,
+            };
             users[userIndex].kycTier = newTier;
             localStorage.setItem("registeredUsers", JSON.stringify(users));
           }
@@ -1119,16 +1123,35 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "hybrid-ramp-storage",
-      partialize: (state) => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-        assets: state.assets,
-        transactions: state.transactions,
-        practicePortfolio: state.practicePortfolio,
-        practiceTransactions: state.practiceTransactions,
-        tradingBehavior: state.tradingBehavior,
-        progressionLevel: state.progressionLevel,
-      }),
+      partialize: (state) => {
+        // Create a sanitized user object without large file data
+        const sanitizedUser = state.user ? {
+          ...state.user,
+          kycDocuments: {
+            idUploaded: state.user.kycDocuments.idUploaded,
+            addressProofUploaded: state.user.kycDocuments.addressProofUploaded,
+            selfieUploaded: state.user.kycDocuments.selfieUploaded,
+            // Don't persist actual file data - too large for localStorage
+          },
+        } : null;
+
+        return {
+          user: sanitizedUser,
+          isAuthenticated: state.isAuthenticated,
+          assets: state.assets,
+          // Only keep last 20 transactions to prevent storage bloat
+          transactions: state.transactions.slice(0, 20),
+          practicePortfolio: {
+            ...state.practicePortfolio,
+            // Limit practice assets
+            assets: state.practicePortfolio.assets.slice(0, 10),
+          },
+          // Only keep last 20 practice transactions
+          practiceTransactions: state.practiceTransactions.slice(0, 20),
+          tradingBehavior: state.tradingBehavior,
+          progressionLevel: state.progressionLevel,
+        };
+      },
     }
   )
 );
