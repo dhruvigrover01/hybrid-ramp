@@ -4,10 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/store/appStore";
 import { toast } from "sonner";
-import { FlaskConical, ArrowDownLeft, ArrowUpRight, Brain, AlertTriangle, Trophy, Lightbulb } from "lucide-react";
+import { FlaskConical, ArrowDownLeft, ArrowUpRight, Brain, AlertTriangle, Trophy, Lightbulb, TrendingUp, TrendingDown } from "lucide-react";
 
 interface PracticeTradeModalProps {
   isOpen: boolean;
@@ -38,23 +38,23 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
     executePracticeTrade, 
     practicePortfolio, 
     marketPrices,
-    updateMarketPrices 
+    fetchMarketPrices,
+    isLoadingPrices
   } = useAppStore();
 
+  // Get real price from market data
   const currentPrice = marketPrices[selectedCrypto.symbol]?.price || 0;
   const change24h = marketPrices[selectedCrypto.symbol]?.change24h || 0;
-  const cryptoAmount = amount ? parseFloat(amount) / currentPrice : 0;
+  const cryptoAmount = amount && currentPrice ? parseFloat(amount) / currentPrice : 0;
 
   // Get holdings for sell tab
   const holdings = practicePortfolio.assets.find(a => a.symbol === selectedCrypto.symbol);
 
   useEffect(() => {
-    // Update prices periodically
-    const interval = setInterval(() => {
-      updateMarketPrices();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [updateMarketPrices]);
+    if (isOpen) {
+      fetchMarketPrices();
+    }
+  }, [isOpen, fetchMarketPrices]);
 
   useEffect(() => {
     setTab(defaultTab);
@@ -63,6 +63,11 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
   const handleTrade = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (currentPrice === 0) {
+      toast.error("Price data unavailable. Please try again.");
       return;
     }
 
@@ -84,6 +89,7 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
 
     if (result.success) {
       toast.success(`Practice ${tab} executed!`);
+      setAmount("");
     } else {
       toast.error(result.feedback.title);
     }
@@ -153,20 +159,23 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
             <div className="space-y-2">
               <Label>Select Cryptocurrency</Label>
               <div className="grid grid-cols-5 gap-2">
-                {cryptoOptions.map((crypto) => (
-                  <button
-                    key={crypto.symbol}
-                    onClick={() => setSelectedCrypto(crypto)}
-                    className={`p-2 rounded-xl border transition-all ${
-                      selectedCrypto.symbol === crypto.symbol
-                        ? "border-primary bg-primary/10"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <span className="text-lg">{crypto.icon}</span>
-                    <p className="text-xs font-medium mt-1">{crypto.symbol}</p>
-                  </button>
-                ))}
+                {cryptoOptions.map((crypto) => {
+                  const price = marketPrices[crypto.symbol]?.price || 0;
+                  return (
+                    <button
+                      key={crypto.symbol}
+                      onClick={() => setSelectedCrypto(crypto)}
+                      className={`p-2 rounded-xl border transition-all ${
+                        selectedCrypto.symbol === crypto.symbol
+                          ? "border-primary bg-primary/10"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <span className="text-lg">{crypto.icon}</span>
+                      <p className="text-xs font-medium mt-1">{crypto.symbol}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -175,10 +184,17 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Current Price</span>
                 <div className="text-right">
-                  <span className="font-medium">${currentPrice.toLocaleString()}</span>
-                  <span className={`ml-2 text-xs ${change24h >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                    {change24h >= 0 ? "+" : ""}{change24h.toFixed(2)}%
-                  </span>
+                  {isLoadingPrices ? (
+                    <span className="text-muted-foreground">Loading...</span>
+                  ) : (
+                    <>
+                      <span className="font-medium">${currentPrice.toLocaleString()}</span>
+                      <span className={`ml-2 text-xs flex items-center gap-1 ${change24h >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                        {change24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {change24h >= 0 ? "+" : ""}{change24h.toFixed(2)}%
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -202,9 +218,9 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
                   className="pl-8 h-12 bg-secondary border-border"
                 />
               </div>
-              {amount && (
+              {amount && currentPrice > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  ≈ {cryptoAmount.toFixed(6)} {selectedCrypto.symbol}
+                  ≈ {cryptoAmount.toFixed(8)} {selectedCrypto.symbol}
                 </p>
               )}
             </div>
@@ -233,6 +249,20 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
                     {holdings.balance.toFixed(6)} {selectedCrypto.symbol}
                   </span>
                 </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs text-muted-foreground">Value</span>
+                  <span className="text-sm">
+                    ${(holdings.balance * currentPrice).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {tab === "sell" && !holdings && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <p className="text-sm text-amber-500">
+                  You don't have any {selectedCrypto.symbol} to sell. Buy some first!
+                </p>
               </div>
             )}
 
@@ -263,7 +293,7 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
               variant="hero"
               className={`w-full ${tab === "sell" ? "bg-red-500 hover:bg-red-600" : ""}`}
               onClick={handleTrade}
-              disabled={executing || !amount}
+              disabled={executing || !amount || currentPrice === 0 || (tab === "sell" && !holdings)}
             >
               {executing ? (
                 <span className="flex items-center gap-2">
@@ -289,4 +319,3 @@ const PracticeTradeModal = ({ isOpen, onClose, defaultTab = "buy" }: PracticeTra
 };
 
 export default PracticeTradeModal;
-

@@ -6,48 +6,81 @@ import { Label } from "@/components/ui/label";
 import { useAppStore } from "@/store/appStore";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Mail, Lock, User, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Helmet } from "react-helmet";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string; confirmPassword?: string }>({});
 
-  const login = useAppStore((state) => state.login);
+  const { login, register } = useAppStore();
   const navigate = useNavigate();
+
+  const validateForm = () => {
+    const newErrors: typeof errors = {};
+    
+    if (!email) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Please enter a valid email";
+    }
+    
+    if (!password) {
+      newErrors.password = "Password is required";
+    } else if (password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
+    }
+    
+    if (!isLogin) {
+      if (!name) {
+        newErrors.name = "Name is required";
+      }
+      if (!confirmPassword) {
+        newErrors.confirmPassword = "Please confirm your password";
+      } else if (password !== confirmPassword) {
+        newErrors.confirmPassword = "Passwords don't match";
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) return;
+    
     setLoading(true);
 
     try {
-      if (!email || !password) {
-        toast.error("Please fill in all fields");
-        return;
+      if (isLogin) {
+        await login(email, password);
+        toast.success("Welcome back!");
+      } else {
+        await register(email, password, name);
+        toast.success("Account created successfully!");
       }
-
-      if (!isLogin && !name) {
-        toast.error("Please enter your name");
-        return;
-      }
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      const success = await login(email, password);
-      if (success) {
-        toast.success(isLogin ? "Welcome back!" : "Account created successfully!");
-        navigate("/dashboard");
-      }
+      navigate("/dashboard");
     } catch (error) {
-      toast.error("Something went wrong. Please try again.");
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const switchMode = () => {
+    setIsLogin(!isLogin);
+    setErrors({});
+    setPassword("");
+    setConfirmPassword("");
   };
 
   return (
@@ -113,10 +146,16 @@ const Auth = () => {
                         type="text"
                         placeholder="John Doe"
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="pl-10 h-12 bg-secondary border-border"
+                        onChange={(e) => { setName(e.target.value); setErrors(prev => ({ ...prev, name: undefined })); }}
+                        className={`pl-10 h-12 bg-secondary border-border ${errors.name ? "border-destructive" : ""}`}
                       />
                     </div>
+                    {errors.name && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.name}
+                      </p>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -130,10 +169,16 @@ const Auth = () => {
                     type="email"
                     placeholder="you@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12 bg-secondary border-border"
+                    onChange={(e) => { setEmail(e.target.value); setErrors(prev => ({ ...prev, email: undefined })); }}
+                    className={`pl-10 h-12 bg-secondary border-border ${errors.email ? "border-destructive" : ""}`}
                   />
                 </div>
+                {errors.email && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {errors.email}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -145,8 +190,8 @@ const Auth = () => {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-12 bg-secondary border-border"
+                    onChange={(e) => { setPassword(e.target.value); setErrors(prev => ({ ...prev, password: undefined })); }}
+                    className={`pl-10 pr-10 h-12 bg-secondary border-border ${errors.password ? "border-destructive" : ""}`}
                   />
                   <button
                     type="button"
@@ -156,7 +201,51 @@ const Auth = () => {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
+                {errors.password && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {errors.password}
+                  </p>
+                )}
               </div>
+
+              <AnimatePresence mode="wait">
+                {!isLogin && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-2"
+                  >
+                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                      <Input
+                        id="confirmPassword"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => { setConfirmPassword(e.target.value); setErrors(prev => ({ ...prev, confirmPassword: undefined })); }}
+                        className={`pl-10 h-12 bg-secondary border-border ${errors.confirmPassword ? "border-destructive" : ""}`}
+                      />
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.confirmPassword}
+                      </p>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {isLogin && (
+                <div className="flex justify-end">
+                  <button type="button" className="text-sm text-primary hover:underline">
+                    Forgot password?
+                  </button>
+                </div>
+              )}
 
               <Button
                 type="submit"
@@ -180,7 +269,7 @@ const Auth = () => {
 
             <div className="mt-6 text-center">
               <button
-                onClick={() => setIsLogin(!isLogin)}
+                onClick={switchMode}
                 className="text-muted-foreground hover:text-primary text-sm transition-colors"
               >
                 {isLogin ? (
@@ -199,7 +288,10 @@ const Auth = () => {
           </div>
 
           <p className="text-center text-muted-foreground text-xs mt-6">
-            By continuing, you agree to our Terms of Service and Privacy Policy.
+            By continuing, you agree to our{" "}
+            <a href="#" className="text-primary hover:underline">Terms of Service</a>
+            {" "}and{" "}
+            <a href="#" className="text-primary hover:underline">Privacy Policy</a>.
           </p>
         </motion.div>
       </div>

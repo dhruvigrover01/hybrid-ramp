@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
@@ -11,16 +11,16 @@ import { toast } from "sonner";
 import { 
   Shield, 
   CheckCircle2, 
-  Circle, 
   Upload, 
   Phone, 
   Mail, 
   FileText, 
   Camera,
   MapPin,
-  ChevronRight,
   AlertTriangle,
-  Star
+  Star,
+  X,
+  Image
 } from "lucide-react";
 
 const tiers = [
@@ -53,48 +53,109 @@ const KycPage = () => {
   const [otp, setOtp] = useState("");
   const [showOtp, setShowOtp] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  
+  // File previews
+  const [idPreview, setIdPreview] = useState<string | null>(null);
+  const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
+  const [addressPreview, setAddressPreview] = useState<string | null>(null);
+  
+  // File input refs
+  const idInputRef = useRef<HTMLInputElement>(null);
+  const selfieInputRef = useRef<HTMLInputElement>(null);
+  const addressInputRef = useRef<HTMLInputElement>(null);
 
-  const { user, uploadKycDocument, verifyPhone, updateKycTier } = useAppStore();
+  const { user, uploadKycDocument, verifyPhone } = useAppStore();
 
   const currentTier = user?.kycTier || 0;
 
-  const handlePhoneVerify = async () => {
+  const handleSendOtp = async () => {
     if (!phoneNumber || phoneNumber.length < 10) {
       toast.error("Please enter a valid phone number");
       return;
     }
     
-    if (!showOtp) {
-      setShowOtp(true);
-      toast.success("OTP sent to your phone!");
+    setSendingOtp(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setShowOtp(true);
+    setSendingOtp(false);
+    toast.success("OTP sent to your phone!");
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length !== 6) {
+      toast.error("Please enter a valid 6-digit OTP");
       return;
     }
 
-    if (otp !== "123456") {
-      toast.error("Invalid OTP. Use 123456 for demo.");
-      return;
-    }
-
-    const success = await verifyPhone(phoneNumber);
-    if (success) {
+    setVerifyingOtp(true);
+    try {
+      await verifyPhone(phoneNumber, otp);
       toast.success("Phone verified successfully!");
       setShowOtp(false);
       setOtp("");
+      setPhoneNumber("");
+    } catch (error) {
+      toast.error("Invalid OTP. Please try again.");
     }
+    setVerifyingOtp(false);
   };
 
-  const handleDocumentUpload = async (docType: "id" | "addressProof" | "selfie") => {
-    setUploading(docType);
+  const handleFileSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    docType: "id" | "addressProof" | "selfie"
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     
-    // Simulate file upload
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    const success = await uploadKycDocument(docType);
-    if (success) {
-      toast.success(`${docType === "id" ? "ID" : docType === "addressProof" ? "Address proof" : "Selfie"} uploaded successfully!`);
+    // Validate file
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      toast.error("Please upload an image or PDF file");
+      return;
     }
     
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be less than 10MB");
+      return;
+    }
+    
+    // Create preview
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const preview = reader.result as string;
+        if (docType === "id") setIdPreview(preview);
+        if (docType === "selfie") setSelfiePreview(preview);
+        if (docType === "addressProof") setAddressPreview(preview);
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    // Upload file
+    setUploading(docType);
+    try {
+      await uploadKycDocument(docType, file);
+      toast.success(`${docType === "id" ? "ID" : docType === "addressProof" ? "Address proof" : "Selfie"} uploaded successfully!`);
+    } catch (error) {
+      toast.error("Upload failed. Please try again.");
+    }
     setUploading(null);
+  };
+
+  const clearPreview = (docType: "id" | "addressProof" | "selfie") => {
+    if (docType === "id") {
+      setIdPreview(null);
+      if (idInputRef.current) idInputRef.current.value = "";
+    }
+    if (docType === "selfie") {
+      setSelfiePreview(null);
+      if (selfieInputRef.current) selfieInputRef.current.value = "";
+    }
+    if (docType === "addressProof") {
+      setAddressPreview(null);
+      if (addressInputRef.current) addressInputRef.current.value = "";
+    }
   };
 
   return (
@@ -156,7 +217,7 @@ const KycPage = () => {
                   {[1, 2, 3].map((tier) => (
                     <div
                       key={tier}
-                      className={`flex-1 h-2 rounded-full ${
+                      className={`flex-1 h-2 rounded-full transition-colors ${
                         currentTier >= tier ? "bg-primary" : "bg-secondary"
                       }`}
                     />
@@ -179,7 +240,7 @@ const KycPage = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 + index * 0.1 }}
-                      className={`rounded-2xl p-6 ${
+                      className={`rounded-2xl p-6 transition-all ${
                         isCompleted 
                           ? "bg-primary/10 border-2 border-primary" 
                           : isCurrent
@@ -273,32 +334,43 @@ const KycPage = () => {
                     
                     {!user?.phone && (
                       <div className="space-y-3">
-                        <div className="flex gap-2">
-                          <Input
-                            type="tel"
-                            placeholder="+1 234 567 8900"
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            className="flex-1 bg-background"
-                          />
-                          {!showOtp && (
-                            <Button onClick={handlePhoneVerify}>
-                              Send OTP
-                            </Button>
-                          )}
-                        </div>
-                        {showOtp && (
+                        {!showOtp ? (
                           <div className="flex gap-2">
                             <Input
-                              type="text"
-                              placeholder="Enter OTP (use 123456)"
-                              value={otp}
-                              onChange={(e) => setOtp(e.target.value)}
+                              type="tel"
+                              placeholder="+1 234 567 8900"
+                              value={phoneNumber}
+                              onChange={(e) => setPhoneNumber(e.target.value)}
                               className="flex-1 bg-background"
                             />
-                            <Button onClick={handlePhoneVerify}>
-                              Verify
+                            <Button onClick={handleSendOtp} disabled={sendingOtp}>
+                              {sendingOtp ? "Sending..." : "Send OTP"}
                             </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <p className="text-sm text-muted-foreground">
+                              Enter the 6-digit code sent to {phoneNumber}
+                            </p>
+                            <div className="flex gap-2">
+                              <Input
+                                type="text"
+                                placeholder="Enter 6-digit OTP"
+                                value={otp}
+                                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                className="flex-1 bg-background tracking-widest text-center text-lg"
+                                maxLength={6}
+                              />
+                              <Button onClick={handleVerifyOtp} disabled={verifyingOtp}>
+                                {verifyingOtp ? "Verifying..." : "Verify"}
+                              </Button>
+                            </div>
+                            <button
+                              onClick={() => { setShowOtp(false); setOtp(""); }}
+                              className="text-sm text-muted-foreground hover:text-foreground"
+                            >
+                              Change phone number
+                            </button>
                           </div>
                         )}
                       </div>
@@ -330,24 +402,59 @@ const KycPage = () => {
                     </div>
                     
                     {!user?.kycDocuments?.idUploaded && currentTier >= 1 && (
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => handleDocumentUpload("id")}
-                        disabled={uploading === "id"}
-                      >
-                        {uploading === "id" ? (
-                          <span className="flex items-center gap-2">
-                            <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                            Uploading...
-                          </span>
+                      <div className="space-y-3">
+                        <input
+                          ref={idInputRef}
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={(e) => handleFileSelect(e, "id")}
+                        />
+                        
+                        {idPreview ? (
+                          <div className="relative">
+                            <img src={idPreview} alt="ID Preview" className="w-full h-48 object-cover rounded-xl" />
+                            <button
+                              onClick={() => clearPreview("id")}
+                              className="absolute top-2 right-2 p-1 bg-background/80 rounded-full"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         ) : (
-                          <>
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload ID Document
-                          </>
+                          <div
+                            onClick={() => idInputRef.current?.click()}
+                            className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                          >
+                            <Image className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                            <p className="text-sm text-muted-foreground">
+                              Click to upload or drag and drop
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              PNG, JPG or PDF (max 10MB)
+                            </p>
+                          </div>
                         )}
-                      </Button>
+                        
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => idInputRef.current?.click()}
+                          disabled={uploading === "id"}
+                        >
+                          {uploading === "id" ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                              Uploading...
+                            </span>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4 mr-2" />
+                              {idPreview ? "Change Document" : "Upload ID Document"}
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </div>
 
@@ -376,24 +483,60 @@ const KycPage = () => {
                     </div>
                     
                     {!user?.kycDocuments?.selfieUploaded && user?.kycDocuments?.idUploaded && (
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => handleDocumentUpload("selfie")}
-                        disabled={uploading === "selfie"}
-                      >
-                        {uploading === "selfie" ? (
-                          <span className="flex items-center gap-2">
-                            <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                            Verifying...
-                          </span>
+                      <div className="space-y-3">
+                        <input
+                          ref={selfieInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="user"
+                          className="hidden"
+                          onChange={(e) => handleFileSelect(e, "selfie")}
+                        />
+                        
+                        {selfiePreview ? (
+                          <div className="relative">
+                            <img src={selfiePreview} alt="Selfie Preview" className="w-full h-48 object-cover rounded-xl" />
+                            <button
+                              onClick={() => clearPreview("selfie")}
+                              className="absolute top-2 right-2 p-1 bg-background/80 rounded-full"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         ) : (
-                          <>
-                            <Camera className="w-4 h-4 mr-2" />
-                            Take Selfie
-                          </>
+                          <div
+                            onClick={() => selfieInputRef.current?.click()}
+                            className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                          >
+                            <Camera className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                            <p className="text-sm text-muted-foreground">
+                              Click to take a selfie or upload
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Hold your ID next to your face
+                            </p>
+                          </div>
                         )}
-                      </Button>
+                        
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => selfieInputRef.current?.click()}
+                          disabled={uploading === "selfie"}
+                        >
+                          {uploading === "selfie" ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                              Verifying...
+                            </span>
+                          ) : (
+                            <>
+                              <Camera className="w-4 h-4 mr-2" />
+                              {selfiePreview ? "Retake Selfie" : "Take Selfie"}
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </div>
 
@@ -406,7 +549,7 @@ const KycPage = () => {
                         </div>
                         <div>
                           <p className="font-medium">Address Proof</p>
-                          <p className="text-sm text-muted-foreground">Utility bill or bank statement</p>
+                          <p className="text-sm text-muted-foreground">Utility bill or bank statement (last 3 months)</p>
                         </div>
                       </div>
                       {user?.kycDocuments?.addressProofUploaded ? (
@@ -422,24 +565,59 @@ const KycPage = () => {
                     </div>
                     
                     {!user?.kycDocuments?.addressProofUploaded && currentTier >= 2 && (
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => handleDocumentUpload("addressProof")}
-                        disabled={uploading === "addressProof"}
-                      >
-                        {uploading === "addressProof" ? (
-                          <span className="flex items-center gap-2">
-                            <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                            Uploading...
-                          </span>
+                      <div className="space-y-3">
+                        <input
+                          ref={addressInputRef}
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={(e) => handleFileSelect(e, "addressProof")}
+                        />
+                        
+                        {addressPreview ? (
+                          <div className="relative">
+                            <img src={addressPreview} alt="Address Proof Preview" className="w-full h-48 object-cover rounded-xl" />
+                            <button
+                              onClick={() => clearPreview("addressProof")}
+                              className="absolute top-2 right-2 p-1 bg-background/80 rounded-full"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         ) : (
-                          <>
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload Address Proof
-                          </>
+                          <div
+                            onClick={() => addressInputRef.current?.click()}
+                            className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                          >
+                            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                            <p className="text-sm text-muted-foreground">
+                              Click to upload or drag and drop
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              PNG, JPG or PDF (max 10MB)
+                            </p>
+                          </div>
                         )}
-                      </Button>
+                        
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => addressInputRef.current?.click()}
+                          disabled={uploading === "addressProof"}
+                        >
+                          {uploading === "addressProof" ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                              Uploading...
+                            </span>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4 mr-2" />
+                              {addressPreview ? "Change Document" : "Upload Address Proof"}
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -458,7 +636,7 @@ const KycPage = () => {
                     <p className="font-medium text-blue-500">Why is KYC required?</p>
                     <p className="text-sm text-muted-foreground mt-1">
                       KYC (Know Your Customer) verification helps us comply with regulations, prevent fraud, and protect your account. 
-                      Higher verification tiers unlock increased trading limits and additional features.
+                      Higher verification tiers unlock increased trading limits and additional features. Your documents are encrypted and stored securely.
                     </p>
                   </div>
                 </div>
@@ -472,4 +650,3 @@ const KycPage = () => {
 };
 
 export default KycPage;
-

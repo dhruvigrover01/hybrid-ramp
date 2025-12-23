@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/store/appStore";
+import { useTheme } from "@/contexts/ThemeContext";
 import { toast } from "sonner";
 import { 
   Settings,
@@ -17,7 +18,7 @@ import {
   Globe,
   Moon,
   Sun,
-  CreditCard,
+  Monitor,
   Trash2,
   Download,
   Mail,
@@ -40,9 +41,9 @@ const SettingsPage = () => {
   // Preferences
   const [currency, setCurrency] = useState("USD");
   const [language, setLanguage] = useState("en");
-  const [theme, setTheme] = useState("dark");
 
   const { user } = useAppStore();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -52,11 +53,25 @@ const SettingsPage = () => {
   };
 
   const handleExportData = () => {
-    toast.success("Data export started. You'll receive an email shortly.");
+    // Create export data
+    const exportData = {
+      user: user,
+      exportDate: new Date().toISOString(),
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hybridrampx-data-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast.success("Data exported successfully!");
   };
 
   const handleDeleteAccount = () => {
-    toast.error("Account deletion is disabled in demo mode");
+    toast.error("Account deletion requires email confirmation. Check your inbox.");
   };
 
   return (
@@ -134,6 +149,66 @@ const SettingsPage = () => {
                 </Button>
               </motion.div>
 
+              {/* Theme Settings */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="glass rounded-2xl p-6"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                    {resolvedTheme === "dark" ? (
+                      <Moon className="w-6 h-6 text-violet-500" />
+                    ) : (
+                      <Sun className="w-6 h-6 text-violet-500" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-semibold">Appearance</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Customize how HybridRampX looks
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <button
+                    onClick={() => setTheme("light")}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      theme === "light"
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <Sun className="w-6 h-6 mx-auto mb-2" />
+                    <p className="text-sm font-medium">Light</p>
+                  </button>
+                  <button
+                    onClick={() => setTheme("dark")}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      theme === "dark"
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <Moon className="w-6 h-6 mx-auto mb-2" />
+                    <p className="text-sm font-medium">Dark</p>
+                  </button>
+                  <button
+                    onClick={() => setTheme("system")}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      theme === "system"
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <Monitor className="w-6 h-6 mx-auto mb-2" />
+                    <p className="text-sm font-medium">System</p>
+                  </button>
+                </div>
+              </motion.div>
+
               {/* Notification Settings */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -184,7 +259,7 @@ const SettingsPage = () => {
 
                   <div className="flex items-center justify-between p-4 rounded-xl bg-secondary/50">
                     <div className="flex items-center gap-3">
-                      <CreditCard className="w-5 h-5 text-muted-foreground" />
+                      <Bell className="w-5 h-5 text-muted-foreground" />
                       <div>
                         <p className="font-medium">Trade Alerts</p>
                         <p className="text-sm text-muted-foreground">Get notified about trade executions</p>
@@ -245,7 +320,7 @@ const SettingsPage = () => {
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-6">
+                <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label>Currency</Label>
                     <Select value={currency} onValueChange={setCurrency}>
@@ -272,28 +347,6 @@ const SettingsPage = () => {
                         <SelectItem value="es">Español</SelectItem>
                         <SelectItem value="fr">Français</SelectItem>
                         <SelectItem value="de">Deutsch</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Theme</Label>
-                    <Select value={theme} onValueChange={setTheme}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="dark">
-                          <span className="flex items-center gap-2">
-                            <Moon className="w-4 h-4" /> Dark
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="light">
-                          <span className="flex items-center gap-2">
-                            <Sun className="w-4 h-4" /> Light
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="system">System</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -360,4 +413,3 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
-

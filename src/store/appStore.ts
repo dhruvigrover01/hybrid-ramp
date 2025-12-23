@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { connectWallet as connectMetaMask, disconnectWallet as disconnectMetaMask, getBalance, checkConnection, formatAddress, getChainName, onAccountsChanged, onChainChanged, isMetaMaskInstalled } from "@/lib/wallet";
+import { getCryptoPrices, getMarketData, getCoinPrice } from "@/lib/api";
 
 export interface User {
   id: string;
@@ -13,8 +15,11 @@ export interface User {
   phone: string | null;
   kycDocuments: {
     idUploaded: boolean;
+    idFile?: string;
     addressProofUploaded: boolean;
+    addressProofFile?: string;
     selfieUploaded: boolean;
+    selfieFile?: string;
   };
   createdAt: Date;
 }
@@ -27,6 +32,7 @@ export interface Asset {
   change24h: number;
   icon: string;
   price: number;
+  image?: string;
 }
 
 export interface Transaction {
@@ -52,11 +58,11 @@ export interface TradingBehavior {
   totalTrades: number;
   winningTrades: number;
   losingTrades: number;
-  averageHoldTime: number; // in hours
+  averageHoldTime: number;
   panicSells: number;
   fomoBuys: number;
   overtradingDays: number;
-  riskScore: number; // 0-100, lower is better
+  riskScore: number;
   lastTradeTime: Date | null;
   tradesLast24h: number;
   consecutiveLosses: number;
@@ -81,12 +87,24 @@ export interface SafetyWarning {
   action?: string;
 }
 
+interface WalletInfo {
+  address: string;
+  balance: string;
+  chainId: number;
+  chainName: string;
+}
+
 interface AppState {
   user: User | null;
   isAuthenticated: boolean;
   assets: Asset[];
   transactions: Transaction[];
+  
+  // Real Wallet State
   walletConnected: boolean;
+  walletInfo: WalletInfo | null;
+  isConnectingWallet: boolean;
+  walletError: string | null;
 
   // Practice Mode State
   isPracticeMode: boolean;
@@ -97,18 +115,25 @@ interface AppState {
   
   // Safety Layer
   safetyWarnings: SafetyWarning[];
-  progressionLevel: number; // 1-5
+  progressionLevel: number;
   isReadyForRealTrading: boolean;
 
-  // Market Data (simulated)
+  // Market Data
   marketPrices: Record<string, { price: number; change24h: number }>;
+  isLoadingPrices: boolean;
+  lastPriceUpdate: Date | null;
 
   // Actions
   setUser: (user: User | null) => void;
   login: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string, name: string) => Promise<boolean>;
   logout: () => void;
-  connectWallet: (address: string) => void;
+  
+  // Real Wallet Actions
+  connectWallet: () => Promise<boolean>;
   disconnectWallet: () => void;
+  refreshWalletBalance: () => Promise<void>;
+  
   updateKycTier: (tier: 0 | 1 | 2 | 3) => void;
   setCustodyType: (type: "self" | "vault") => void;
   addTransaction: (tx: Omit<Transaction, "id" | "timestamp">) => void;
@@ -120,12 +145,14 @@ interface AppState {
   resetPracticePortfolio: () => void;
   
   // KYC Actions
-  uploadKycDocument: (docType: "id" | "addressProof" | "selfie") => Promise<boolean>;
-  verifyPhone: (phone: string) => Promise<boolean>;
+  uploadKycDocument: (docType: "id" | "addressProof" | "selfie", file: File) => Promise<boolean>;
+  verifyPhone: (phone: string, otp: string) => Promise<boolean>;
   
   // Security Actions
-  enableTwoFactor: () => Promise<boolean>;
+  enableTwoFactor: () => Promise<{ secret: string; qrCode: string }>;
+  verifyTwoFactor: (code: string) => Promise<boolean>;
   disableTwoFactor: () => Promise<boolean>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   
   // AI Coach Actions
   addAIInsight: (insight: Omit<AICoachInsight, "id" | "timestamp">) => void;
@@ -137,6 +164,7 @@ interface AppState {
   checkProgressionStatus: () => void;
   
   // Market Actions
+  fetchMarketPrices: () => Promise<void>;
   updateMarketPrices: () => void;
 }
 
@@ -162,27 +190,12 @@ const initialTradingBehavior: TradingBehavior = {
   largestGain: 0,
 };
 
-const mockAssets: Asset[] = [
-  { symbol: "BTC", name: "Bitcoin", balance: 0.52, usdValue: 28450, change24h: 5.2, icon: "₿", price: 54750 },
-  { symbol: "ETH", name: "Ethereum", balance: 4.8, usdValue: 15840, change24h: 8.1, icon: "Ξ", price: 3300 },
-  { symbol: "USDT", name: "Tether", balance: 2500, usdValue: 2500, change24h: 0.01, icon: "$", price: 1 },
-  { symbol: "MATIC", name: "Polygon", balance: 1200, usdValue: 1506.24, change24h: -2.3, icon: "⬡", price: 1.25 },
+const defaultAssets: Asset[] = [
+  { symbol: "BTC", name: "Bitcoin", balance: 0, usdValue: 0, change24h: 0, icon: "₿", price: 0 },
+  { symbol: "ETH", name: "Ethereum", balance: 0, usdValue: 0, change24h: 0, icon: "Ξ", price: 0 },
+  { symbol: "USDT", name: "Tether", balance: 0, usdValue: 0, change24h: 0, icon: "$", price: 1 },
+  { symbol: "MATIC", name: "Polygon", balance: 0, usdValue: 0, change24h: 0, icon: "⬡", price: 0 },
 ];
-
-const mockTransactions: Transaction[] = [
-  { id: "1", type: "buy", asset: "BTC", amount: 0.1, usdValue: 5500, status: "completed", timestamp: new Date(Date.now() - 86400000) },
-  { id: "2", type: "buy", asset: "ETH", amount: 2.0, usdValue: 6600, status: "completed", timestamp: new Date(Date.now() - 172800000) },
-  { id: "3", type: "deposit", asset: "USDT", amount: 1000, usdValue: 1000, status: "completed", timestamp: new Date(Date.now() - 259200000) },
-];
-
-const initialMarketPrices: Record<string, { price: number; change24h: number }> = {
-  BTC: { price: 54750, change24h: 5.2 },
-  ETH: { price: 3300, change24h: 8.1 },
-  USDT: { price: 1, change24h: 0.01 },
-  MATIC: { price: 1.25, change24h: -2.3 },
-  SOL: { price: 145, change24h: 12.5 },
-  DOGE: { price: 0.12, change24h: -5.2 },
-};
 
 // AI Coach Analysis Functions
 const analyzeTradeForFeedback = (
@@ -198,7 +211,6 @@ const analyzeTradeForFeedback = (
   const portfolioPercentage = (tradeValue / portfolio.totalValue) * 100;
   const assetData = marketPrices[asset];
   
-  // Check for FOMO buying (buying after big pump)
   if (type === "buy" && assetData && assetData.change24h > 10) {
     return {
       id: "",
@@ -209,7 +221,6 @@ const analyzeTradeForFeedback = (
     };
   }
   
-  // Check for panic selling (selling after big drop)
   if (type === "sell" && assetData && assetData.change24h < -8) {
     return {
       id: "",
@@ -220,7 +231,6 @@ const analyzeTradeForFeedback = (
     };
   }
   
-  // Check for overtrading
   if (behavior.tradesLast24h >= 5) {
     return {
       id: "",
@@ -231,7 +241,6 @@ const analyzeTradeForFeedback = (
     };
   }
   
-  // Check for oversized position
   if (portfolioPercentage > 30) {
     return {
       id: "",
@@ -242,7 +251,6 @@ const analyzeTradeForFeedback = (
     };
   }
   
-  // Check for consecutive losses
   if (behavior.consecutiveLosses >= 3) {
     return {
       id: "",
@@ -253,7 +261,6 @@ const analyzeTradeForFeedback = (
     };
   }
   
-  // Good behavior - small position size
   if (portfolioPercentage < 10 && portfolioPercentage > 0) {
     return {
       id: "",
@@ -264,7 +271,6 @@ const analyzeTradeForFeedback = (
     };
   }
   
-  // Default analysis
   return {
     id: "",
     type: "analysis",
@@ -277,11 +283,16 @@ const analyzeTradeForFeedback = (
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      user: null,
-      isAuthenticated: false,
-      assets: mockAssets,
-      transactions: mockTransactions,
-      walletConnected: false,
+  user: null,
+  isAuthenticated: false,
+      assets: defaultAssets,
+      transactions: [],
+      
+      // Wallet State
+  walletConnected: false,
+      walletInfo: null,
+      isConnectingWallet: false,
+      walletError: null,
       
       // Practice Mode Initial State
       isPracticeMode: false,
@@ -296,18 +307,47 @@ export const useAppStore = create<AppState>()(
       isReadyForRealTrading: false,
       
       // Market Data
-      marketPrices: initialMarketPrices,
+      marketPrices: {},
+      isLoadingPrices: false,
+      lastPriceUpdate: null,
 
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+  setUser: (user) => set({ user, isAuthenticated: !!user }),
 
-      login: async (email: string, password: string) => {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+  login: async (email: string, password: string) => {
+        // In production, this would call your backend API
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    
+        // Check localStorage for registered users
+        const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
+        const existingUser = users.find((u: { email: string; password: string }) => 
+          u.email === email && u.password === password
+        );
         
-        const user: User = {
-          id: "user-1",
-          email,
-          name: email.split("@")[0],
-          kycTier: 1,
+        if (!existingUser && email !== "demo@example.com") {
+          throw new Error("Invalid email or password");
+        }
+        
+        const user: User = existingUser ? {
+          id: existingUser.id,
+          email: existingUser.email,
+          name: existingUser.name,
+          kycTier: existingUser.kycTier || 0,
+          riskLevel: "low",
+          walletAddress: null,
+          custodyType: null,
+          twoFactorEnabled: existingUser.twoFactorEnabled || false,
+          phone: existingUser.phone || null,
+          kycDocuments: existingUser.kycDocuments || {
+            idUploaded: false,
+            addressProofUploaded: false,
+            selfieUploaded: false,
+          },
+          createdAt: new Date(existingUser.createdAt),
+        } : {
+          id: "demo-user",
+      email,
+      name: email.split("@")[0],
+          kycTier: 0,
           riskLevel: "low",
           walletAddress: null,
           custodyType: null,
@@ -322,94 +362,239 @@ export const useAppStore = create<AppState>()(
         };
         
         set({ user, isAuthenticated: true });
+        
+        // Fetch market prices on login
+        get().fetchMarketPrices();
+        
         return true;
       },
 
-      logout: () => {
+      register: async (email: string, password: string, name: string) => {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        
+        const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
+        
+        if (users.find((u: { email: string }) => u.email === email)) {
+          throw new Error("Email already registered");
+        }
+        
+        const newUser = {
+          id: `user-${Date.now()}`,
+          email,
+          password,
+          name,
+          kycTier: 0,
+          twoFactorEnabled: false,
+          phone: null,
+          kycDocuments: {
+            idUploaded: false,
+            addressProofUploaded: false,
+            selfieUploaded: false,
+          },
+          createdAt: new Date().toISOString(),
+        };
+        
+        users.push(newUser);
+        localStorage.setItem("registeredUsers", JSON.stringify(users));
+        
+        const user: User = {
+          id: newUser.id,
+          email: newUser.email,
+          name: newUser.name,
+          kycTier: 0,
+      riskLevel: "low",
+      walletAddress: null,
+      custodyType: null,
+          twoFactorEnabled: false,
+          phone: null,
+          kycDocuments: {
+            idUploaded: false,
+            addressProofUploaded: false,
+            selfieUploaded: false,
+          },
+          createdAt: new Date(),
+    };
+    
+    set({ user, isAuthenticated: true });
+        get().fetchMarketPrices();
+        
+    return true;
+  },
+
+  logout: () => {
         set({ 
           user: null, 
           isAuthenticated: false, 
           walletConnected: false,
+          walletInfo: null,
           isPracticeMode: false,
         });
       },
 
-      connectWallet: (address: string) => {
-        const { user } = get();
-        if (user) {
-          set({
-            user: { ...user, walletAddress: address },
-            walletConnected: true,
-          });
-        }
-      },
-
-      disconnectWallet: () => {
-        const { user } = get();
-        if (user) {
-          set({
-            user: { ...user, walletAddress: null },
-            walletConnected: false,
-          });
-        }
-      },
-
-      updateKycTier: (tier) => {
-        const { user, checkProgressionStatus } = get();
-        if (user) {
-          set({ user: { ...user, kycTier: tier } });
-          checkProgressionStatus();
-        }
-      },
-
-      setCustodyType: (type) => {
-        const { user } = get();
-        if (user) {
-          set({ user: { ...user, custodyType: type } });
-        }
-      },
-
-      addTransaction: (tx) => {
-        const newTx: Transaction = {
-          ...tx,
-          id: `tx-${Date.now()}`,
-          timestamp: new Date(),
-        };
-        set((state) => ({ transactions: [newTx, ...state.transactions] }));
-      },
-
-      executeTrade: async (asset: string, amount: number, type: "buy" | "sell") => {
-        const { user, addTransaction, addSafetyWarning, marketPrices } = get();
+      // Real MetaMask Wallet Connection
+      connectWallet: async () => {
+        set({ isConnectingWallet: true, walletError: null });
         
-        const price = marketPrices[asset]?.price || 50000;
-        const tradeValue = amount * price;
-        const executionPlan: string[] = [];
-        let warning: SafetyWarning | undefined;
-        
-        // Smart execution logic
-        if (tradeValue > 10000) {
-          const chunks = Math.ceil(tradeValue / 5000);
-          executionPlan.push(`Trade size detected: $${tradeValue.toLocaleString()}`);
-          executionPlan.push(`Splitting into ${chunks} smaller orders to minimize slippage`);
-          executionPlan.push(`Using smart routing across multiple liquidity sources`);
-        } else {
-          executionPlan.push(`Trade size: $${tradeValue.toLocaleString()}`);
-          executionPlan.push(`Executing instantly via primary liquidity pool`);
-        }
-
-        // Risk checks based on KYC tier
-        if (user) {
-          const tierLimits = {
-            0: 500,
-            1: 5000,
-            2: 50000,
-            3: Infinity,
+        try {
+          if (!isMetaMaskInstalled()) {
+            throw new Error("MetaMask is not installed. Please install MetaMask extension to connect your wallet.");
+          }
+          
+          const { address, chainId } = await connectMetaMask();
+          const balance = await getBalance(address);
+          const chainName = getChainName(chainId);
+          
+          const walletInfo: WalletInfo = {
+            address,
+            balance,
+            chainId,
+            chainName,
           };
           
+          // Update user's wallet address
+    const { user } = get();
+    if (user) {
+      set({
+        user: { ...user, walletAddress: address },
+        walletConnected: true,
+              walletInfo,
+              isConnectingWallet: false,
+            });
+          } else {
+            set({
+              walletConnected: true,
+              walletInfo,
+              isConnectingWallet: false,
+            });
+          }
+          
+          // Set up listeners for account/chain changes
+          onAccountsChanged(async (accounts) => {
+            if (accounts.length === 0) {
+              get().disconnectWallet();
+            } else {
+              const newBalance = await getBalance(accounts[0]);
+              set((state) => ({
+                walletInfo: state.walletInfo ? {
+                  ...state.walletInfo,
+                  address: accounts[0],
+                  balance: newBalance,
+                } : null,
+                user: state.user ? { ...state.user, walletAddress: accounts[0] } : null,
+              }));
+            }
+          });
+          
+          onChainChanged(async (newChainId) => {
+            const { walletInfo } = get();
+            if (walletInfo) {
+              const newBalance = await getBalance(walletInfo.address);
+              set({
+                walletInfo: {
+                  ...walletInfo,
+                  chainId: newChainId,
+                  chainName: getChainName(newChainId),
+                  balance: newBalance,
+                },
+              });
+            }
+          });
+          
+          return true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to connect wallet";
+          set({ walletError: message, isConnectingWallet: false });
+          throw error;
+    }
+  },
+
+  disconnectWallet: () => {
+        disconnectMetaMask();
+    const { user } = get();
+    if (user) {
+      set({
+        user: { ...user, walletAddress: null },
+        walletConnected: false,
+            walletInfo: null,
+          });
+        } else {
+          set({
+            walletConnected: false,
+            walletInfo: null,
+      });
+    }
+  },
+
+      refreshWalletBalance: async () => {
+        const { walletInfo } = get();
+        if (walletInfo) {
+          try {
+            const balance = await getBalance(walletInfo.address);
+            set({
+              walletInfo: { ...walletInfo, balance },
+            });
+          } catch (error) {
+            console.error("Failed to refresh balance:", error);
+          }
+        }
+      },
+
+  updateKycTier: (tier) => {
+        const { user, checkProgressionStatus } = get();
+    if (user) {
+          // Save to localStorage
+          const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
+          const userIndex = users.findIndex((u: { email: string }) => u.email === user.email);
+          if (userIndex >= 0) {
+            users[userIndex].kycTier = tier;
+            localStorage.setItem("registeredUsers", JSON.stringify(users));
+          }
+          
+      set({ user: { ...user, kycTier: tier } });
+          checkProgressionStatus();
+    }
+  },
+
+  setCustodyType: (type) => {
+    const { user } = get();
+    if (user) {
+      set({ user: { ...user, custodyType: type } });
+    }
+  },
+
+  addTransaction: (tx) => {
+    const newTx: Transaction = {
+      ...tx,
+      id: `tx-${Date.now()}`,
+      timestamp: new Date(),
+    };
+    set((state) => ({ transactions: [newTx, ...state.transactions] }));
+  },
+
+  executeTrade: async (asset: string, amount: number, type: "buy" | "sell") => {
+        const { user, addTransaction, addSafetyWarning, marketPrices, assets } = get();
+    
+        const price = marketPrices[asset]?.price || 0;
+        const tradeValue = amount * price;
+    const executionPlan: string[] = [];
+        let warning: SafetyWarning | undefined;
+    
+    if (tradeValue > 10000) {
+      const chunks = Math.ceil(tradeValue / 5000);
+      executionPlan.push(`Trade size detected: $${tradeValue.toLocaleString()}`);
+      executionPlan.push(`Splitting into ${chunks} smaller orders to minimize slippage`);
+      executionPlan.push(`Using smart routing across multiple liquidity sources`);
+    } else {
+      executionPlan.push(`Trade size: $${tradeValue.toLocaleString()}`);
+      executionPlan.push(`Executing instantly via primary liquidity pool`);
+    }
+
+    if (user) {
+          const tierLimits = { 0: 100, 1: 500, 2: 5000, 3: Infinity };
           const limit = tierLimits[user.kycTier];
           
           if (tradeValue > limit) {
-            const tierName = user.kycTier === 0 ? "Basic" : user.kycTier === 1 ? "Verified" : "Premium";
+            const tierName = user.kycTier === 0 ? "Unverified" : user.kycTier === 1 ? "Basic" : user.kycTier === 2 ? "Verified" : "Premium";
             warning = {
               id: `warning-${Date.now()}`,
               type: "kyc_required",
@@ -422,7 +607,6 @@ export const useAppStore = create<AppState>()(
             return { success: false, executionPlan, warning };
           }
           
-          // Volatility warning
           const assetData = marketPrices[asset];
           if (assetData && Math.abs(assetData.change24h) > 10) {
             warning = {
@@ -433,21 +617,21 @@ export const useAppStore = create<AppState>()(
             };
             addSafetyWarning(warning);
             executionPlan.push(`⚠️ High volatility detected: ${assetData.change24h.toFixed(1)}% 24h change`);
-          }
-        }
+      }
+    }
 
-        executionPlan.push(`✓ Risk assessment passed`);
-        executionPlan.push(`✓ Order submitted to blockchain`);
+    executionPlan.push(`✓ Risk assessment passed`);
+    executionPlan.push(`✓ Order submitted to blockchain`);
 
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        addTransaction({
-          type,
-          asset,
-          amount,
-          usdValue: tradeValue,
-          status: "completed",
-          txHash: `0x${Math.random().toString(16).slice(2, 10)}...`,
+    addTransaction({
+      type,
+      asset,
+      amount,
+      usdValue: tradeValue,
+      status: "completed",
+          txHash: `0x${Math.random().toString(16).slice(2, 10)}${Math.random().toString(16).slice(2, 10)}`,
         });
 
         // Update assets
@@ -458,31 +642,42 @@ export const useAppStore = create<AppState>()(
               return {
                 assets: state.assets.map(a => 
                   a.symbol === asset 
-                    ? { ...a, balance: a.balance + amount, usdValue: a.usdValue + tradeValue }
+                    ? { ...a, balance: a.balance + amount, usdValue: (a.balance + amount) * price }
                     : a
                 ),
+              };
+            } else {
+              return {
+                assets: [...state.assets, {
+                  symbol: asset,
+                  name: asset,
+                  balance: amount,
+                  usdValue: tradeValue,
+                  change24h: marketPrices[asset]?.change24h || 0,
+                  icon: asset === "BTC" ? "₿" : asset === "ETH" ? "Ξ" : "$",
+                  price,
+                }],
               };
             }
           } else {
             if (existingAsset) {
+              const newBalance = Math.max(0, existingAsset.balance - amount);
               return {
                 assets: state.assets.map(a => 
                   a.symbol === asset 
-                    ? { ...a, balance: Math.max(0, a.balance - amount), usdValue: Math.max(0, a.usdValue - tradeValue) }
+                    ? { ...a, balance: newBalance, usdValue: newBalance * price }
                     : a
                 ),
               };
             }
           }
           return state;
-        });
+    });
 
-        executionPlan.push(`✓ Trade completed successfully!`);
-
+    executionPlan.push(`✓ Trade completed successfully!`);
         return { success: true, executionPlan, warning };
       },
       
-      // Practice Mode Actions
       togglePracticeMode: () => {
         set((state) => ({ isPracticeMode: !state.isPracticeMode }));
       },
@@ -491,7 +686,6 @@ export const useAppStore = create<AppState>()(
         const { practicePortfolio, tradingBehavior, marketPrices, addAIInsight } = get();
         const tradeValue = amount * price;
         
-        // Validate trade
         if (type === "buy" && tradeValue > practicePortfolio.fiatBalance) {
           return {
             success: false,
@@ -521,14 +715,11 @@ export const useAppStore = create<AppState>()(
           }
         }
         
-        // Generate AI feedback
         const feedback = analyzeTradeForFeedback(type, asset, amount, price, tradingBehavior, practicePortfolio, marketPrices);
         feedback.id = `insight-${Date.now()}`;
         
-        // Simulate execution
         await new Promise((resolve) => setTimeout(resolve, 1000));
         
-        // Update practice portfolio
         set((state) => {
           const newAssets = [...state.practicePortfolio.assets];
           const existingIndex = newAssets.findIndex(a => a.symbol === asset);
@@ -537,12 +728,11 @@ export const useAppStore = create<AppState>()(
             if (existingIndex >= 0) {
               const existing = newAssets[existingIndex];
               const newBalance = existing.balance + amount;
-              const newAvgPrice = ((existing.balance * (existing.usdValue / existing.balance)) + tradeValue) / newBalance;
               newAssets[existingIndex] = {
                 ...existing,
                 balance: newBalance,
                 usdValue: newBalance * price,
-                price: newAvgPrice,
+                price,
               };
             } else {
               newAssets.push({
@@ -611,10 +801,7 @@ export const useAppStore = create<AppState>()(
           };
         });
         
-        // Add the insight
         addAIInsight(feedback);
-        
-        // Check progression
         get().checkProgressionStatus();
         
         return { success: true, feedback };
@@ -629,22 +816,46 @@ export const useAppStore = create<AppState>()(
         });
       },
       
-      // KYC Actions
-      uploadKycDocument: async (docType) => {
+      uploadKycDocument: async (docType, file) => {
+        // In production, upload to your server/cloud storage
         await new Promise((resolve) => setTimeout(resolve, 2000));
+        
+        // Convert file to base64 for demo (in production, use proper file storage)
+        const reader = new FileReader();
+        const fileData = await new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
         
         set((state) => {
           if (!state.user) return state;
           
           const newDocs = { ...state.user.kycDocuments };
-          if (docType === "id") newDocs.idUploaded = true;
-          if (docType === "addressProof") newDocs.addressProofUploaded = true;
-          if (docType === "selfie") newDocs.selfieUploaded = true;
+          if (docType === "id") {
+            newDocs.idUploaded = true;
+            newDocs.idFile = fileData;
+          }
+          if (docType === "addressProof") {
+            newDocs.addressProofUploaded = true;
+            newDocs.addressProofFile = fileData;
+          }
+          if (docType === "selfie") {
+            newDocs.selfieUploaded = true;
+            newDocs.selfieFile = fileData;
+          }
           
-          // Auto-upgrade tier based on documents
           let newTier = state.user.kycTier;
           if (newDocs.idUploaded && newTier < 2) newTier = 2;
           if (newDocs.idUploaded && newDocs.addressProofUploaded && newDocs.selfieUploaded && newTier < 3) newTier = 3;
+          
+          // Save to localStorage
+          const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
+          const userIndex = users.findIndex((u: { email: string }) => u.email === state.user!.email);
+          if (userIndex >= 0) {
+            users[userIndex].kycDocuments = newDocs;
+            users[userIndex].kycTier = newTier;
+            localStorage.setItem("registeredUsers", JSON.stringify(users));
+          }
           
           return {
             user: {
@@ -659,14 +870,28 @@ export const useAppStore = create<AppState>()(
         return true;
       },
       
-      verifyPhone: async (phone) => {
+      verifyPhone: async (phone, otp) => {
         await new Promise((resolve) => setTimeout(resolve, 1500));
+        
+        // In production, verify OTP with your backend
+        if (otp.length !== 6) {
+          throw new Error("Invalid OTP");
+        }
         
         set((state) => {
           if (!state.user) return state;
           
           let newTier = state.user.kycTier;
           if (newTier === 0) newTier = 1;
+          
+          // Save to localStorage
+          const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
+          const userIndex = users.findIndex((u: { email: string }) => u.email === state.user!.email);
+          if (userIndex >= 0) {
+            users[userIndex].phone = phone;
+            users[userIndex].kycTier = newTier;
+            localStorage.setItem("registeredUsers", JSON.stringify(users));
+          }
           
           return {
             user: {
@@ -680,12 +905,34 @@ export const useAppStore = create<AppState>()(
         return true;
       },
       
-      // Security Actions
       enableTwoFactor: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        
+        // Generate a mock secret (in production, generate on server)
+        const secret = "JBSWY3DPEHPK3PXP"; // Demo secret
+        const qrCode = `otpauth://totp/HybridRampX:${get().user?.email}?secret=${secret}&issuer=HybridRampX`;
+        
+        return { secret, qrCode };
+      },
+      
+      verifyTwoFactor: async (code) => {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        
+        // In production, verify TOTP code on server
+        if (code.length !== 6) {
+          throw new Error("Invalid code");
+        }
         
         set((state) => {
           if (!state.user) return state;
+          
+          const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
+          const userIndex = users.findIndex((u: { email: string }) => u.email === state.user!.email);
+          if (userIndex >= 0) {
+            users[userIndex].twoFactorEnabled = true;
+            localStorage.setItem("registeredUsers", JSON.stringify(users));
+          }
+          
           return {
             user: { ...state.user, twoFactorEnabled: true },
           };
@@ -699,6 +946,14 @@ export const useAppStore = create<AppState>()(
         
         set((state) => {
           if (!state.user) return state;
+          
+          const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
+          const userIndex = users.findIndex((u: { email: string }) => u.email === state.user!.email);
+          if (userIndex >= 0) {
+            users[userIndex].twoFactorEnabled = false;
+            localStorage.setItem("registeredUsers", JSON.stringify(users));
+          }
+          
           return {
             user: { ...state.user, twoFactorEnabled: false },
           };
@@ -707,7 +962,27 @@ export const useAppStore = create<AppState>()(
         return true;
       },
       
-      // AI Coach Actions
+      changePassword: async (currentPassword, newPassword) => {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        
+        const { user } = get();
+        if (!user) throw new Error("Not logged in");
+        
+        const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
+        const userIndex = users.findIndex((u: { email: string; password: string }) => 
+          u.email === user.email && u.password === currentPassword
+        );
+        
+        if (userIndex < 0) {
+          throw new Error("Current password is incorrect");
+        }
+        
+        users[userIndex].password = newPassword;
+        localStorage.setItem("registeredUsers", JSON.stringify(users));
+        
+        return true;
+      },
+      
       addAIInsight: (insight) => {
         const newInsight: AICoachInsight = {
           ...insight,
@@ -715,7 +990,7 @@ export const useAppStore = create<AppState>()(
           timestamp: new Date(),
         };
         set((state) => ({
-          aiInsights: [newInsight, ...state.aiInsights].slice(0, 50), // Keep last 50
+          aiInsights: [newInsight, ...state.aiInsights].slice(0, 50),
         }));
       },
       
@@ -723,7 +998,6 @@ export const useAppStore = create<AppState>()(
         set({ aiInsights: [] });
       },
       
-      // Safety Actions
       addSafetyWarning: (warning) => {
         const newWarning: SafetyWarning = {
           ...warning,
@@ -741,27 +1015,19 @@ export const useAppStore = create<AppState>()(
       },
       
       checkProgressionStatus: () => {
-        const { user, tradingBehavior, practiceTransactions } = get();
+        const { user, tradingBehavior } = get();
         
         let level = 1;
         let ready = false;
         
-        // Level 2: Completed at least 5 practice trades
         if (tradingBehavior.totalTrades >= 5) level = 2;
-        
-        // Level 3: Good risk management (low FOMO/panic sells)
         if (level >= 2 && tradingBehavior.fomoBuys <= 2 && tradingBehavior.panicSells <= 2) level = 3;
-        
-        // Level 4: KYC Tier 2+
         if (level >= 3 && user && user.kycTier >= 2) level = 4;
-        
-        // Level 5: Ready for real trading
         if (level >= 4 && tradingBehavior.totalTrades >= 10 && tradingBehavior.riskScore < 40) {
           level = 5;
           ready = true;
         }
         
-        // Calculate risk score
         const riskScore = Math.min(100, Math.max(0,
           50 +
           (tradingBehavior.fomoBuys * 5) +
@@ -781,19 +1047,61 @@ export const useAppStore = create<AppState>()(
         });
       },
       
-      // Market Actions
-      updateMarketPrices: () => {
-        set((state) => {
-          const newPrices = { ...state.marketPrices };
-          Object.keys(newPrices).forEach(symbol => {
-            const change = (Math.random() - 0.5) * 2; // -1% to +1%
-            newPrices[symbol] = {
-              price: newPrices[symbol].price * (1 + change / 100),
-              change24h: newPrices[symbol].change24h + change * 0.1,
+      // Fetch real prices from CoinGecko
+      fetchMarketPrices: async () => {
+        set({ isLoadingPrices: true });
+        
+        try {
+          const symbols = ["BTC", "ETH", "USDT", "MATIC", "SOL", "DOGE", "BNB", "XRP", "ADA"];
+          const marketData = await getMarketData(symbols);
+          
+          const prices: Record<string, { price: number; change24h: number }> = {};
+          marketData.forEach((coin) => {
+            const symbol = coin.symbol.toUpperCase();
+            prices[symbol] = {
+              price: coin.current_price,
+              change24h: coin.price_change_percentage_24h,
             };
           });
-          return { marketPrices: newPrices };
-        });
+          
+          // Update assets with real prices
+          set((state) => ({
+            marketPrices: prices,
+            isLoadingPrices: false,
+            lastPriceUpdate: new Date(),
+            assets: state.assets.map(asset => {
+              const priceData = prices[asset.symbol];
+              if (priceData) {
+                return {
+                  ...asset,
+                  price: priceData.price,
+                  change24h: priceData.change24h,
+                  usdValue: asset.balance * priceData.price,
+                };
+              }
+              return asset;
+            }),
+          }));
+        } catch (error) {
+          console.error("Failed to fetch market prices:", error);
+          set({ isLoadingPrices: false });
+          
+          // Fallback to mock prices
+          const fallbackPrices = {
+            BTC: { price: 43250, change24h: 2.5 },
+            ETH: { price: 2280, change24h: 3.1 },
+            USDT: { price: 1, change24h: 0.01 },
+            MATIC: { price: 0.85, change24h: -1.2 },
+            SOL: { price: 98, change24h: 5.4 },
+            DOGE: { price: 0.082, change24h: -2.1 },
+          };
+          set({ marketPrices: fallbackPrices });
+        }
+      },
+      
+      updateMarketPrices: () => {
+        // Trigger a fresh fetch
+        get().fetchMarketPrices();
       },
     }),
     {
@@ -801,6 +1109,8 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        assets: state.assets,
+        transactions: state.transactions,
         practicePortfolio: state.practicePortfolio,
         practiceTransactions: state.practiceTransactions,
         tradingBehavior: state.tradingBehavior,
