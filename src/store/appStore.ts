@@ -317,14 +317,20 @@ export const useAppStore = create<AppState>()(
         // In production, this would call your backend API
     await new Promise((resolve) => setTimeout(resolve, 1000));
     
+        // Normalize email to lowercase for consistent matching
+        const normalizedEmail = email.toLowerCase().trim();
+        
         // Check localStorage for registered users
         const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
         const existingUser = users.find((u: { email: string; password: string }) => 
-          u.email === email && u.password === password
+          u.email.toLowerCase().trim() === normalizedEmail && u.password === password
         );
         
-        if (!existingUser && email !== "demo@example.com") {
-          throw new Error("Invalid email or password");
+        // Allow demo account for testing
+        const isDemoAccount = normalizedEmail === "demo@example.com";
+        
+        if (!existingUser && !isDemoAccount) {
+          throw new Error("Invalid email or password. Please check your credentials or sign up for a new account.");
         }
         
         const user: User = existingUser ? {
@@ -333,8 +339,8 @@ export const useAppStore = create<AppState>()(
           name: existingUser.name,
           kycTier: existingUser.kycTier || 0,
           riskLevel: "low",
-          walletAddress: null,
-          custodyType: null,
+          walletAddress: existingUser.walletAddress || null,
+          custodyType: existingUser.custodyType || null,
           twoFactorEnabled: existingUser.twoFactorEnabled || false,
           phone: existingUser.phone || null,
           kycDocuments: existingUser.kycDocuments || {
@@ -345,9 +351,9 @@ export const useAppStore = create<AppState>()(
           createdAt: new Date(existingUser.createdAt),
         } : {
           id: "demo-user",
-      email,
-      name: email.split("@")[0],
-          kycTier: 0,
+      email: normalizedEmail,
+      name: "Demo User",
+          kycTier: 1,
           riskLevel: "low",
           walletAddress: null,
           custodyType: null,
@@ -372,18 +378,25 @@ export const useAppStore = create<AppState>()(
       register: async (email: string, password: string, name: string) => {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         
+        // Normalize email to lowercase for consistent storage
+        const normalizedEmail = email.toLowerCase().trim();
+        
         const users = JSON.parse(localStorage.getItem("registeredUsers") || "[]");
         
-        if (users.find((u: { email: string }) => u.email === email)) {
-          throw new Error("Email already registered");
+        // Check if email already exists (case-insensitive)
+        if (users.find((u: { email: string }) => u.email.toLowerCase().trim() === normalizedEmail)) {
+          throw new Error("This email is already registered. Please sign in instead.");
         }
         
         const newUser = {
           id: `user-${Date.now()}`,
-          email,
+          email: normalizedEmail,
           password,
-          name,
+          name: name.trim(),
           kycTier: 0,
+          riskLevel: "low",
+          walletAddress: null,
+          custodyType: null,
           twoFactorEnabled: false,
           phone: null,
           kycDocuments: {
