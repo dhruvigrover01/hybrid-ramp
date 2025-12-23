@@ -1,13 +1,30 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import Navbar from "@/components/Navbar";
+import Hero from "@/components/Hero";
+import Features from "@/components/Features";
+import HowItWorks from "@/components/HowItWorks";
+import Footer from "@/components/Footer";
+import { Helmet } from "react-helmet";
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <>
+      <Helmet>
+        <title>HybridRampX - Buy & Trade Crypto Securely</title>
+        <meta
+          name="description"
+          content="Your beginner-friendly gateway to crypto. Smart execution, dynamic KYC, and hybrid custody — all designed for safety and simplicity."
+        />
+      </Helmet>
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main>
+          <Hero />
+          <Features />
+          <HowItWorks />
+        </main>
+        <Footer />
       </div>
-    </div>
+    </>
   );
 };
 
