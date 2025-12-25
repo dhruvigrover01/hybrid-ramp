@@ -13,7 +13,7 @@ import TransactionsPage from "./pages/TransactionsPage";
 import KycPage from "./pages/KycPage";
 import SecurityPage from "./pages/SecurityPage";
 import SettingsPage from "./pages/SettingsPage";
-import SafetyPage from "./pages/SafetyPage";
+// SafetyPage removed per UX change
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -112,7 +112,6 @@ const App = () => {
               <Route path="/dashboard/kyc" element={<KycPage />} />
               <Route path="/dashboard/security" element={<SecurityPage />} />
               <Route path="/dashboard/settings" element={<SettingsPage />} />
-              <Route path="/dashboard/safety" element={<SafetyPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

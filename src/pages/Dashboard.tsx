@@ -33,6 +33,8 @@ import { useSafetyStore, TradeAlternative, LearningQuiz } from "@/store/safetySt
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { FlaskConical, Sparkles, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Shield, BookOpen } from "lucide-react";
+import InstitutionalTradeModal from "@/components/dashboard/InstitutionalTradeModal";
+import LoanModal from "@/components/loans/LoanModal";
 
 const Dashboard = () => {
   const [buyModalOpen, setBuyModalOpen] = useState(false);
@@ -45,6 +47,8 @@ const Dashboard = () => {
   const [whyModalOpen, setWhyModalOpen] = useState(false);
   const [timeLockOpen, setTimeLockOpen] = useState(false);
   const [quizModalOpen, setQuizModalOpen] = useState(false);
+  const [institutionalOpen, setInstitutionalOpen] = useState(false);
+  const [loanOpen, setLoanOpen] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState<LearningQuiz | null>(null);
   const [pendingTradeAction, setPendingTradeAction] = useState<(() => void) | null>(null);
   
@@ -196,6 +200,12 @@ const Dashboard = () => {
         case "buy":
           setBuyModalOpen(true);
           break;
+        case "institutional":
+          setInstitutionalOpen(true);
+          break;
+          case "borrow":
+            setLoanOpen(true);
+            break;
         case "sell":
           setSellModalOpen(true);
           break;
@@ -414,6 +424,20 @@ const Dashboard = () => {
                     action: "send",
                     disabled: isPracticeMode
                   },
+                  {
+                    icon: Sparkles,
+                    label: "Institutional",
+                    color: "bg-indigo-500/20 text-indigo-500",
+                    action: "institutional",
+                    disabled: isPracticeMode
+                  },
+                  {
+                    icon: BookOpen,
+                    label: "Borrow",
+                    color: "bg-amber-500/20 text-amber-500",
+                    action: "borrow",
+                    disabled: isPracticeMode
+                  },
                 ].map((item, index) => (
                   <motion.button
                     key={item.label}
@@ -545,6 +569,8 @@ const Dashboard = () => {
           onClose={() => setPracticeTradeOpen(false)} 
           defaultTab={practiceTradeType}
         />
+        <InstitutionalTradeModal isOpen={institutionalOpen} onClose={() => setInstitutionalOpen(false)} />
+        <LoanModal isOpen={loanOpen} onClose={() => setLoanOpen(false)} />
         
         {/* Safety Modals */}
         <WhyModeModal

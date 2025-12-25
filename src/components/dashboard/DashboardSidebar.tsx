@@ -25,7 +25,6 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Wallet, label: "Wallet", path: "/dashboard/wallet" },
   { icon: ArrowUpDown, label: "Transactions", path: "/dashboard/transactions" },
-  { icon: Heart, label: "Safety & Learning", path: "/dashboard/safety", highlight: true },
   { icon: FileCheck, label: "KYC", path: "/dashboard/kyc" },
   { icon: Shield, label: "Security", path: "/dashboard/security" },
   { icon: Settings, label: "Settings", path: "/dashboard/settings" },

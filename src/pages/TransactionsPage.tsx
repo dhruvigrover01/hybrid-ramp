@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/store/appStore";
+import PracticeModeToggle from "@/components/dashboard/PracticeModeToggle";
 import { format } from "date-fns";
 import { 
   ArrowUpRight, 
@@ -120,6 +121,9 @@ const TransactionsPage = () => {
                   Export CSV
                 </Button>
               </motion.div>
+
+              {/* Practice Mode Toggle */}
+              <PracticeModeToggle />
 
               {/* Filters */}
               <motion.div
